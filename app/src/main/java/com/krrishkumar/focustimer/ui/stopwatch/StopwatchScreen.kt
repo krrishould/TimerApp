@@ -45,6 +45,7 @@ import com.krrishkumar.focustimer.ui.theme.LocalAppColors
 fun StopwatchScreen(
     repository: SessionRepository,
     textSizeLevel: Int,
+    logOnPause: Boolean,
     modifier: Modifier = Modifier,
     focusMode: Boolean = false
 ) {
@@ -52,6 +53,8 @@ fun StopwatchScreen(
     val state by viewModel.uiState.collectAsState()
     val colors = LocalAppColors.current
     var naming by remember { mutableStateOf(false) }
+
+    viewModel.logOnPause = logOnPause
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val compact = maxHeight < 520.dp

@@ -99,6 +99,13 @@ class HistoryViewModel(private val repository: SessionRepository) : ViewModel() 
         _uiState.value = _uiState.value.copy(selectedDay = null, selectedDaySessions = emptyList())
     }
 
+    fun deleteSession(session: WorkSession) {
+        viewModelScope.launch {
+            repository.deleteSession(session.id)
+            refresh()
+        }
+    }
+
     fun setLabel(session: WorkSession, label: String) {
         viewModelScope.launch {
             repository.updateLabel(session.id, label.trim().ifBlank { null })

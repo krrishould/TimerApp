@@ -14,7 +14,9 @@ data class AppColors(
     val accent: Color,
     val onAccent: Color,
     /** Used when the pomodoro has run past its planned end. */
-    val overtime: Color
+    val overtime: Color,
+    /** Destructive actions, such as deleting a recorded session. */
+    val danger: Color
 )
 
 val DarkAppColors = AppColors(
@@ -27,7 +29,8 @@ val DarkAppColors = AppColors(
     textMuted = Color(0xFF63636D),
     accent = Color(0xFF8B7CFF),
     onAccent = Color(0xFF1A1530),
-    overtime = Color(0xFFF0A83C)
+    overtime = Color(0xFFF0A83C),
+    danger = Color(0xFFFF7B72)
 )
 
 val LightAppColors = AppColors(
@@ -40,7 +43,8 @@ val LightAppColors = AppColors(
     textMuted = Color(0xFFA3A3AC),
     accent = Color(0xFF6C5CE7),
     onAccent = Color(0xFFFFFFFF),
-    overtime = Color(0xFFC77800)
+    overtime = Color(0xFFC77800),
+    danger = Color(0xFFC5303A)
 )
 
 val LocalAppColors = staticCompositionLocalOf { DarkAppColors }

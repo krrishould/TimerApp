@@ -35,6 +35,12 @@ class MainActivity : ComponentActivity() {
             var endBehavior by remember {
                 mutableStateOf(PomodoroEndBehavior.from(preferences.getPomodoroEndBehavior()))
             }
+            var keepIncompleteCycles by remember {
+                mutableStateOf(preferences.isKeepIncompleteCycles())
+            }
+            var logStopwatchOnPause by remember {
+                mutableStateOf(preferences.isLogStopwatchOnPause())
+            }
             var focusGestureEnabled by remember { mutableStateOf(preferences.isFocusGestureEnabled()) }
 
             FocusTimerTheme(darkTheme = isDarkTheme) {
@@ -64,6 +70,16 @@ class MainActivity : ComponentActivity() {
                     onEndBehaviorChange = { behavior ->
                         endBehavior = behavior
                         preferences.setPomodoroEndBehavior(behavior.name)
+                    },
+                    keepIncompleteCycles = keepIncompleteCycles,
+                    onKeepIncompleteCyclesChange = { enabled ->
+                        keepIncompleteCycles = enabled
+                        preferences.setKeepIncompleteCycles(enabled)
+                    },
+                    logStopwatchOnPause = logStopwatchOnPause,
+                    onLogStopwatchOnPauseChange = { enabled ->
+                        logStopwatchOnPause = enabled
+                        preferences.setLogStopwatchOnPause(enabled)
                     },
                     focusGestureEnabled = focusGestureEnabled,
                     onFocusGestureChange = { enabled ->

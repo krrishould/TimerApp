@@ -152,7 +152,11 @@ fun HistoryScreen(repository: SessionRepository, modifier: Modifier = Modifier) 
                 viewModel.setLabel(session, label)
                 editing = null
             },
-            onDismiss = { editing = null }
+            onDismiss = { editing = null },
+            onDelete = {
+                viewModel.deleteSession(session)
+                editing = null
+            }
         )
     }
 }

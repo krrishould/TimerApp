@@ -53,6 +53,9 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.krrishkumar.focustimer.data.SessionRepository
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.krrishkumar.focustimer.ui.components.GearIcon
 import com.krrishkumar.focustimer.ui.components.observeDoubleTap
 import com.krrishkumar.focustimer.ui.components.TEXT_SIZE_STEPS
 import com.krrishkumar.focustimer.ui.clock.ClockScreen
@@ -79,6 +82,10 @@ fun FocusTimerApp(
     onTextSizeLevelChange: (Int) -> Unit,
     endBehavior: PomodoroEndBehavior,
     onEndBehaviorChange: (PomodoroEndBehavior) -> Unit,
+    keepIncompleteCycles: Boolean,
+    onKeepIncompleteCyclesChange: (Boolean) -> Unit,
+    logStopwatchOnPause: Boolean,
+    onLogStopwatchOnPauseChange: (Boolean) -> Unit,
     focusGestureEnabled: Boolean,
     onFocusGestureChange: (Boolean) -> Unit
 ) {
@@ -145,17 +152,18 @@ fun FocusTimerApp(
                             .padding(horizontal = 12.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.End
                     ) {
-                        Text(
-                            text = "Settings",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = colors.textSecondary,
+                        Box(
                             modifier = Modifier
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) { showSettings = true }
+                                // The gear is a drawing, so it needs a spoken name of its own.
+                                .semantics { contentDescription = "Settings" }
                                 .padding(12.dp)
-                        )
+                        ) {
+                            GearIcon(color = colors.textSecondary)
+                        }
                     }
                 }
             },
@@ -184,8 +192,21 @@ fun FocusTimerApp(
             }
         ) { innerPadding ->
             when (selectedTab) {
-                0 -> TimerScreen(repository, textSizeLevel, endBehavior, Modifier.padding(innerPadding), focusMode = inFocus)
-                1 -> StopwatchScreen(repository, textSizeLevel, Modifier.padding(innerPadding), focusMode = inFocus)
+                0 -> TimerScreen(
+                    repository,
+                    textSizeLevel,
+                    endBehavior,
+                    keepIncompleteCycles,
+                    Modifier.padding(innerPadding),
+                    focusMode = inFocus
+                )
+                1 -> StopwatchScreen(
+                    repository,
+                    textSizeLevel,
+                    logStopwatchOnPause,
+                    Modifier.padding(innerPadding),
+                    focusMode = inFocus
+                )
                 2 -> ClockScreen(is24Hour, showSeconds, textSizeLevel, Modifier.padding(innerPadding), focusMode = inFocus)
                 3 -> HistoryScreen(repository, Modifier.padding(innerPadding))
             }
@@ -218,6 +239,10 @@ fun FocusTimerApp(
             onTextSizeLevelChange = onTextSizeLevelChange,
             endBehavior = endBehavior,
             onEndBehaviorChange = onEndBehaviorChange,
+            keepIncompleteCycles = keepIncompleteCycles,
+            onKeepIncompleteCyclesChange = onKeepIncompleteCyclesChange,
+            logStopwatchOnPause = logStopwatchOnPause,
+            onLogStopwatchOnPauseChange = onLogStopwatchOnPauseChange,
             focusGestureEnabled = focusGestureEnabled,
             onFocusGestureChange = onFocusGestureChange,
             canEnterFocus = focusable,
@@ -242,6 +267,10 @@ private fun SettingsDialog(
     onTextSizeLevelChange: (Int) -> Unit,
     endBehavior: PomodoroEndBehavior,
     onEndBehaviorChange: (PomodoroEndBehavior) -> Unit,
+    keepIncompleteCycles: Boolean,
+    onKeepIncompleteCyclesChange: (Boolean) -> Unit,
+    logStopwatchOnPause: Boolean,
+    onLogStopwatchOnPauseChange: (Boolean) -> Unit,
     focusGestureEnabled: Boolean,
     onFocusGestureChange: (Boolean) -> Unit,
     canEnterFocus: Boolean,
@@ -322,6 +351,36 @@ private fun SettingsDialog(
                 } else {
                     "When focus ends the break starts on its own."
                 },
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textMuted
+            )
+
+            Spacer(Modifier.height(28.dp))
+
+            Text("Tracking", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
+            Spacer(Modifier.height(14.dp))
+            ToggleRow(
+                label = "Keep incomplete cycles",
+                checked = keepIncompleteCycles,
+                onCheckedChange = onKeepIncompleteCyclesChange,
+                colors = colors
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "A timer you reset part-way through is still recorded, once it has run a minute.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textMuted
+            )
+            Spacer(Modifier.height(14.dp))
+            ToggleRow(
+                label = "Log stopwatch on pause",
+                checked = logStopwatchOnPause,
+                onCheckedChange = onLogStopwatchOnPauseChange,
+                colors = colors
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Pausing records the run, so walking away without finishing doesn't lose it.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textMuted
             )
@@ -413,6 +472,34 @@ private fun SettingsDialog(
                 }
             }
         }
+    }
+}
+
+/** A labelled switch, as used by the Tracking settings. */
+@Composable
+private fun ToggleRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    colors: AppColors
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = colors.textSecondary)
+        Spacer(Modifier.weight(1f))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = colors.onAccent,
+                checkedTrackColor = colors.accent,
+                uncheckedThumbColor = colors.textMuted,
+                uncheckedTrackColor = colors.surfaceRaised,
+                uncheckedBorderColor = colors.border
+            )
+        )
     }
 }
 

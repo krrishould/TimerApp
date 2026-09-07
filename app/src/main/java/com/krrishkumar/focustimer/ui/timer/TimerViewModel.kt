@@ -55,8 +55,9 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
     private var tickJob: Job? = null
     private var phaseStartTimeMillis: Long = 0L
 
-    /** Set by the screen from the stored preference. */
+    /** Set by the screen from the stored preferences. */
     var endBehavior: PomodoroEndBehavior = PomodoroEndBehavior.OVERTIME
+    var keepIncompleteCycles: Boolean = true
 
     private fun TimerUiState.currentPhaseMinutes(): Int = when {
         !pomodoroMode -> timerMinutes
@@ -119,6 +120,7 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
     fun reset() {
         tickJob?.cancel()
         flushOvertime()
+        flushIncompleteCycle()
         _uiState.update {
             val fresh = it.copy(
                 phase = TimerPhase.WORK,
@@ -133,6 +135,7 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
     fun togglePomodoroMode() {
         tickJob?.cancel()
         flushOvertime()
+        flushIncompleteCycle()
         _uiState.update {
             val next = it.copy(
                 pomodoroMode = !it.pomodoroMode,
@@ -175,6 +178,23 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
         viewModelScope.launch {
             repository.logSession(SessionType.POMODORO_WORK, startedAt, worked, label)
         }
+    }
+
+    /**
+     * Records a countdown that was abandoned part-way through, so the time isn't lost.
+     * Skipped in overtime (that stretch is logged in full by [flushOvertime]) and for
+     * breaks, and floored at a minute since anything shorter would display as "0m".
+     */
+    private fun flushIncompleteCycle() {
+        val state = _uiState.value
+        if (!keepIncompleteCycles || state.inOvertime) return
+        if (state.pomodoroMode && state.phase == TimerPhase.BREAK) return
+
+        val elapsed = state.currentPhaseMinutes() * 60 * 1000L - state.remainingMillis
+        if (elapsed < 60_000L) return
+
+        val type = if (state.pomodoroMode) SessionType.POMODORO_WORK else SessionType.TIMER
+        logSession(type, elapsed, state.activityName)
     }
 
     fun setTimerMinutes(minutes: Int) = updateMinutes(minutes, 1, 600) { state, value ->

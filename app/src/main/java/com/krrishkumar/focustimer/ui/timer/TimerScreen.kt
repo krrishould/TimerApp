@@ -62,6 +62,7 @@ fun TimerScreen(
     repository: SessionRepository,
     textSizeLevel: Int,
     endBehavior: PomodoroEndBehavior,
+    keepIncompleteCycles: Boolean,
     modifier: Modifier = Modifier,
     focusMode: Boolean = false
 ) {
@@ -72,6 +73,7 @@ fun TimerScreen(
     var naming by remember { mutableStateOf(false) }
 
     viewModel.endBehavior = endBehavior
+    viewModel.keepIncompleteCycles = keepIncompleteCycles
 
     // Editing only makes sense for the plain timer while it's idle.
     val canEdit = !state.pomodoroMode && !state.isRunning && !state.inOvertime && !focusMode

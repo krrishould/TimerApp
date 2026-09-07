@@ -33,6 +33,20 @@ class AppPreferences(context: Context) {
         prefs.edit().putBoolean(KEY_CLOCK_SECONDS, enabled).apply()
     }
 
+    /** Record a partly-run timer when it's abandoned, rather than losing the time. */
+    fun isKeepIncompleteCycles(): Boolean = prefs.getBoolean(KEY_KEEP_INCOMPLETE, true)
+
+    fun setKeepIncompleteCycles(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_KEEP_INCOMPLETE, enabled).apply()
+    }
+
+    /** Record the stopwatch on pause, so forgetting to hit Finish doesn't lose it. */
+    fun isLogStopwatchOnPause(): Boolean = prefs.getBoolean(KEY_STOPWATCH_ON_PAUSE, true)
+
+    fun setLogStopwatchOnPause(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_STOPWATCH_ON_PAUSE, enabled).apply()
+    }
+
     /** Stored as the enum name; see ui.timer.PomodoroEndBehavior. */
     fun getPomodoroEndBehavior(): String =
         prefs.getString(KEY_POMODORO_END, DEFAULT_POMODORO_END) ?: DEFAULT_POMODORO_END
@@ -59,5 +73,7 @@ class AppPreferences(context: Context) {
         const val DEFAULT_TEXT_SIZE_LEVEL = 2
         private const val KEY_POMODORO_END = "pomodoro_end_behavior"
         private const val DEFAULT_POMODORO_END = "OVERTIME"
+        private const val KEY_KEEP_INCOMPLETE = "keep_incomplete_cycles"
+        private const val KEY_STOPWATCH_ON_PAUSE = "log_stopwatch_on_pause"
     }
 }

@@ -9,6 +9,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -41,6 +42,31 @@ fun PauseIcon(color: Color, size: Dp = 22.dp) {
         val barWidth = w * 0.22f
         drawRect(color, Offset(w * 0.2f, h * 0.13f), Size(barWidth, h * 0.74f))
         drawRect(color, Offset(w * 0.58f, h * 0.13f), Size(barWidth, h * 0.74f))
+    }
+}
+
+/** Gear: a stroked ring with eight short teeth radiating from it. */
+@Composable
+fun GearIcon(color: Color, size: Dp = 19.dp) {
+    Canvas(Modifier.size(size)) {
+        val w = this.size.width
+        val centre = Offset(w / 2f, w / 2f)
+        val stroke = w * 0.13f
+        val ringRadius = w * 0.28f
+        val toothOuter = w * 0.46f
+
+        repeat(8) { index ->
+            rotate(degrees = index * 45f, pivot = centre) {
+                drawLine(
+                    color = color,
+                    start = Offset(centre.x, centre.y - ringRadius),
+                    end = Offset(centre.x, centre.y - toothOuter),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round
+                )
+            }
+        }
+        drawCircle(color, radius = ringRadius, center = centre, style = Stroke(width = stroke))
     }
 }
 

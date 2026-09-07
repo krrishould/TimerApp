@@ -46,7 +46,9 @@ fun NameDialog(
     placeholder: String,
     initialValue: String,
     onSave: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** Supplied only where the thing being named can also be removed (History). */
+    onDelete: (() -> Unit)? = null
 ) {
     val colors = LocalAppColors.current
     var text by remember { mutableStateOf(initialValue) }
@@ -95,6 +97,27 @@ fun NameDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 DialogButton("Cancel", filled = false, colors = colors, onClick = onDismiss, modifier = Modifier.weight(1f))
                 DialogButton("Save", filled = true, colors = colors, onClick = { onSave(text) }, modifier = Modifier.weight(1f))
+            }
+
+            if (onDelete != null) {
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onDelete
+                        )
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Delete session",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.danger
+                    )
+                }
             }
         }
     }

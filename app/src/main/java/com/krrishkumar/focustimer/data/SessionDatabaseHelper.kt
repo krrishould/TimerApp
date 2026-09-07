@@ -45,6 +45,16 @@ class SessionDatabaseHelper(context: Context) :
         writableDatabase.update(TABLE_SESSIONS, values, "$COL_ID = ?", arrayOf(sessionId.toString()))
     }
 
+    /** Used while a stopwatch run is still going, so pausing twice doesn't double-count. */
+    fun updateDuration(sessionId: Long, durationMillis: Long) {
+        val values = ContentValues().apply { put(COL_DURATION, durationMillis) }
+        writableDatabase.update(TABLE_SESSIONS, values, "$COL_ID = ?", arrayOf(sessionId.toString()))
+    }
+
+    fun deleteSession(sessionId: Long) {
+        writableDatabase.delete(TABLE_SESSIONS, "$COL_ID = ?", arrayOf(sessionId.toString()))
+    }
+
     fun getSessionsSince(sinceMillis: Long): List<WorkSession> =
         query("$COL_START_TIME >= ?", arrayOf(sinceMillis.toString()))
 
