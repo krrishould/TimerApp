@@ -11,3 +11,7 @@ build/
 *.apk
 *.ap_
 *.dex
+
+# Icon design exploration — the canvas lives as an artifact, and the seeded
+# page is a 2.4 MB generated bundle that has no business in the repo.
+/design/
