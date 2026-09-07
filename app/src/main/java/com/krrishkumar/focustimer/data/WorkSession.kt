@@ -11,5 +11,7 @@ data class WorkSession(
     val id: Long = 0,
     val type: SessionType,
     val startTimeMillis: Long,
-    val durationMillis: Long
+    val durationMillis: Long,
+    /** User-given name for the session; falls back to the type's name when unset. */
+    val label: String? = null
 )

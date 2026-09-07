@@ -9,13 +9,19 @@ class SessionRepository(context: Context) {
 
     suspend fun logSession(type: SessionType, startTimeMillis: Long, durationMillis: Long) {
         withContext(Dispatchers.IO) {
-            dbHelper.insertSession(WorkSession(type = type, startTimeMillis = startTimeMillis, durationMillis = durationMillis))
+            dbHelper.insertSession(
+                WorkSession(type = type, startTimeMillis = startTimeMillis, durationMillis = durationMillis)
+            )
         }
     }
 
-    suspend fun getSessionsSince(sinceMillis: Long): List<WorkSession> {
-        return withContext(Dispatchers.IO) {
-            dbHelper.getSessionsSince(sinceMillis)
-        }
+    suspend fun getSessionsSince(sinceMillis: Long): List<WorkSession> =
+        withContext(Dispatchers.IO) { dbHelper.getSessionsSince(sinceMillis) }
+
+    suspend fun getSessionsBetween(startMillis: Long, endMillis: Long): List<WorkSession> =
+        withContext(Dispatchers.IO) { dbHelper.getSessionsBetween(startMillis, endMillis) }
+
+    suspend fun updateLabel(sessionId: Long, label: String?) {
+        withContext(Dispatchers.IO) { dbHelper.updateLabel(sessionId, label) }
     }
 }
