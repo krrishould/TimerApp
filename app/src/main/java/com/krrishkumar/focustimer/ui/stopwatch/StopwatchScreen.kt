@@ -29,7 +29,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.krrishkumar.focustimer.data.SessionRepository
 import com.krrishkumar.focustimer.ui.components.AnimatedTimeText
+import com.krrishkumar.focustimer.ui.components.fittedDigitSize
 import com.krrishkumar.focustimer.ui.components.focusDigitSize
+import com.krrishkumar.focustimer.ui.components.textSizeScale
 import com.krrishkumar.focustimer.ui.components.PauseIcon
 import com.krrishkumar.focustimer.ui.components.PlayIcon
 import com.krrishkumar.focustimer.ui.components.ResetIcon
@@ -38,6 +40,7 @@ import com.krrishkumar.focustimer.ui.theme.LocalAppColors
 @Composable
 fun StopwatchScreen(
     repository: SessionRepository,
+    textSizeLevel: Int,
     modifier: Modifier = Modifier,
     focusMode: Boolean = false
 ) {
@@ -48,11 +51,17 @@ fun StopwatchScreen(
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val compact = maxHeight < 520.dp
         val timeText = formatMillis(state.elapsedMillis)
+        val scale = textSizeScale(textSizeLevel)
+        val contentWidth = maxWidth - 56.dp // the Column's 28dp padding on each side
         val digitSize = if (focusMode) {
-            // minus the Column's 28dp horizontal padding on each side
-            focusDigitSize(timeText, maxWidth - 56.dp, maxHeight)
+            focusDigitSize(timeText, contentWidth, maxHeight, scale)
         } else {
-            if (compact) 44.sp else 76.sp
+            val base = when {
+                compact -> 48f
+                maxWidth >= 600.dp -> 132f
+                else -> 92f
+            }
+            fittedDigitSize(timeText, contentWidth, (base * scale).sp)
         }
 
         Column(

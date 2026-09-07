@@ -33,11 +33,21 @@ class AppPreferences(context: Context) {
         prefs.edit().putBoolean(KEY_CLOCK_SECONDS, enabled).apply()
     }
 
+    /** 0..4, where 2 is the default middle step. */
+    fun getTextSizeLevel(): Int =
+        prefs.getInt(KEY_TEXT_SIZE_LEVEL, DEFAULT_TEXT_SIZE_LEVEL).coerceIn(0, 4)
+
+    fun setTextSizeLevel(level: Int) {
+        prefs.edit().putInt(KEY_TEXT_SIZE_LEVEL, level.coerceIn(0, 4)).apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "settings"
         private const val KEY_DARK_MODE = "dark_mode"
         private const val KEY_24_HOUR_CLOCK = "clock_24_hour"
         private const val KEY_FOCUS_GESTURE = "focus_gesture_enabled"
         private const val KEY_CLOCK_SECONDS = "clock_show_seconds"
+        private const val KEY_TEXT_SIZE_LEVEL = "text_size_level"
+        const val DEFAULT_TEXT_SIZE_LEVEL = 2
     }
 }

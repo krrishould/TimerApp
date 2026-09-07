@@ -47,12 +47,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.krrishkumar.focustimer.data.SessionRepository
 import com.krrishkumar.focustimer.ui.components.observeDoubleTap
+import com.krrishkumar.focustimer.ui.components.TEXT_SIZE_STEPS
 import com.krrishkumar.focustimer.ui.clock.ClockScreen
 import com.krrishkumar.focustimer.ui.history.HistoryScreen
 import com.krrishkumar.focustimer.ui.stopwatch.StopwatchScreen
@@ -72,6 +74,8 @@ fun FocusTimerApp(
     on24HourChange: (Boolean) -> Unit,
     showSeconds: Boolean,
     onShowSecondsChange: (Boolean) -> Unit,
+    textSizeLevel: Int,
+    onTextSizeLevelChange: (Int) -> Unit,
     focusGestureEnabled: Boolean,
     onFocusGestureChange: (Boolean) -> Unit
 ) {
@@ -177,9 +181,9 @@ fun FocusTimerApp(
             }
         ) { innerPadding ->
             when (selectedTab) {
-                0 -> TimerScreen(repository, Modifier.padding(innerPadding), focusMode = inFocus)
-                1 -> StopwatchScreen(repository, Modifier.padding(innerPadding), focusMode = inFocus)
-                2 -> ClockScreen(is24Hour, showSeconds, Modifier.padding(innerPadding), focusMode = inFocus)
+                0 -> TimerScreen(repository, textSizeLevel, Modifier.padding(innerPadding), focusMode = inFocus)
+                1 -> StopwatchScreen(repository, textSizeLevel, Modifier.padding(innerPadding), focusMode = inFocus)
+                2 -> ClockScreen(is24Hour, showSeconds, textSizeLevel, Modifier.padding(innerPadding), focusMode = inFocus)
                 3 -> HistoryScreen(repository, Modifier.padding(innerPadding))
             }
         }
@@ -207,6 +211,8 @@ fun FocusTimerApp(
             on24HourSelect = on24HourChange,
             showSeconds = showSeconds,
             onShowSecondsChange = onShowSecondsChange,
+            textSizeLevel = textSizeLevel,
+            onTextSizeLevelChange = onTextSizeLevelChange,
             focusGestureEnabled = focusGestureEnabled,
             onFocusGestureChange = onFocusGestureChange,
             canEnterFocus = focusable,
@@ -227,6 +233,8 @@ private fun SettingsDialog(
     on24HourSelect: (Boolean) -> Unit,
     showSeconds: Boolean,
     onShowSecondsChange: (Boolean) -> Unit,
+    textSizeLevel: Int,
+    onTextSizeLevelChange: (Int) -> Unit,
     focusGestureEnabled: Boolean,
     onFocusGestureChange: (Boolean) -> Unit,
     canEnterFocus: Boolean,
@@ -280,6 +288,39 @@ private fun SettingsDialog(
                         uncheckedBorderColor = colors.border
                     )
                 )
+            }
+
+            Spacer(Modifier.height(28.dp))
+
+            Text("Text size", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
+            Spacer(Modifier.height(14.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                TEXT_SIZE_STEPS.forEachIndexed { index, step ->
+                    val selected = index == textSizeLevel
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(
+                                if (selected) colors.accent else colors.surfaceRaised,
+                                RoundedCornerShape(12.dp)
+                            )
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { onTextSizeLevelChange(index) }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "A",
+                            fontSize = (11 + index * 3).sp,
+                            color = if (selected) colors.onAccent else colors.textSecondary
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.height(28.dp))

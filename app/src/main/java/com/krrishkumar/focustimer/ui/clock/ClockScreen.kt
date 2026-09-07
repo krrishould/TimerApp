@@ -20,7 +20,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.krrishkumar.focustimer.ui.components.AnimatedTimeText
+import com.krrishkumar.focustimer.ui.components.fittedDigitSize
 import com.krrishkumar.focustimer.ui.components.focusDigitSize
+import com.krrishkumar.focustimer.ui.components.textSizeScale
 import com.krrishkumar.focustimer.ui.theme.LocalAppColors
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
@@ -38,6 +40,7 @@ private val DATE_FORMAT = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.get
 fun ClockScreen(
     is24Hour: Boolean,
     showSeconds: Boolean,
+    textSizeLevel: Int,
     modifier: Modifier = Modifier,
     focusMode: Boolean = false
 ) {
@@ -65,10 +68,16 @@ fun ClockScreen(
         // suffix needs its own share of what's left.
         val contentWidth = maxWidth - 64.dp
         val widthBudget = if (is24Hour) contentWidth else contentWidth * 0.76f
+        val scale = textSizeScale(textSizeLevel)
         val digitSize = if (focusMode) {
-            focusDigitSize(timeText, widthBudget, maxHeight)
+            focusDigitSize(timeText, widthBudget, maxHeight, scale)
         } else {
-            if (compact) 36.sp else 64.sp
+            val base = when {
+                compact -> 40f
+                maxWidth >= 600.dp -> 116f
+                else -> 78f
+            }
+            fittedDigitSize(timeText, widthBudget, (base * scale).sp)
         }
         val meridiemSize = if (focusMode) digitSize * 0.32f else if (compact) 16.sp else 26.sp
         val gapSmall = if (compact) 6.dp else 16.dp

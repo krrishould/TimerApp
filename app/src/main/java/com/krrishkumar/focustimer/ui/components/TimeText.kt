@@ -16,17 +16,36 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 
+/** Multipliers for the five user-selectable text size steps; index 2 is the default. */
+val TEXT_SIZE_STEPS = listOf(0.78f, 0.88f, 1f, 1.15f, 1.32f)
+
+fun textSizeScale(level: Int): Float = TEXT_SIZE_STEPS[level.coerceIn(0, TEXT_SIZE_STEPS.lastIndex)]
+
+// Space Grotesk advances: digits are roughly 0.62em, the colon far narrower.
+private fun emWidth(text: String): Float =
+    text.sumOf { if (it == ':') 0.30 else 0.62 }.toFloat()
+
 /**
  * Font size for focus mode, where the time is the only thing on screen and should
  * fill it. Derived from the space actually available rather than a fixed value, so
  * a short landscape window gets a large clock instead of the cramped compact size.
+ *
+ * The user's size preference stretches how much height it aims for; width stays a
+ * hard cap so the biggest step can never push digits off screen.
  */
-fun focusDigitSize(text: String, maxWidth: Dp, maxHeight: Dp): TextUnit {
-    // Space Grotesk advances: digits are roughly 0.62em, the colon far narrower.
-    val ems = text.sumOf { if (it == ':') 0.30 else 0.62 }.toFloat()
-    val widthLimited = (maxWidth.value * 0.92f) / ems
-    val heightLimited = maxHeight.value * 0.45f
-    return minOf(widthLimited, heightLimited).coerceIn(48f, 190f).sp
+fun focusDigitSize(text: String, maxWidth: Dp, maxHeight: Dp, scale: Float = 1f): TextUnit {
+    val widthLimited = (maxWidth.value * 0.92f) / emWidth(text)
+    val heightLimited = maxHeight.value * 0.45f * scale
+    return minOf(widthLimited, heightLimited).coerceIn(48f, 240f).sp
+}
+
+/**
+ * Caps a preferred size to what actually fits the available width. Needed because the
+ * base sizes scale up on big screens and the user can scale them further still.
+ */
+fun fittedDigitSize(text: String, maxWidth: Dp, preferred: TextUnit): TextUnit {
+    val fits = (maxWidth.value * 0.94f) / emWidth(text)
+    return minOf(preferred.value, fits).sp
 }
 
 /**

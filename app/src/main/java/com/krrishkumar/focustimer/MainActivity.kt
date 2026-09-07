@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
             var isDarkTheme by remember { mutableStateOf(preferences.isDarkMode()) }
             var is24Hour by remember { mutableStateOf(preferences.is24HourClock()) }
             var showSeconds by remember { mutableStateOf(preferences.isClockSecondsShown()) }
+            var textSizeLevel by remember { mutableIntStateOf(preferences.getTextSizeLevel()) }
             var focusGestureEnabled by remember { mutableStateOf(preferences.isFocusGestureEnabled()) }
 
             FocusTimerTheme(darkTheme = isDarkTheme) {
@@ -48,6 +50,11 @@ class MainActivity : ComponentActivity() {
                     onShowSecondsChange = { enabled ->
                         showSeconds = enabled
                         preferences.setClockSecondsShown(enabled)
+                    },
+                    textSizeLevel = textSizeLevel,
+                    onTextSizeLevelChange = { level ->
+                        textSizeLevel = level
+                        preferences.setTextSizeLevel(level)
                     },
                     focusGestureEnabled = focusGestureEnabled,
                     onFocusGestureChange = { enabled ->
