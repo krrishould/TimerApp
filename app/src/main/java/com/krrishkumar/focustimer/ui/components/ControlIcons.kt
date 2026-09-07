@@ -44,6 +44,34 @@ fun PauseIcon(color: Color, size: Dp = 22.dp) {
     }
 }
 
+/** Small pencil, angled from bottom-left to top-right. */
+@Composable
+fun PencilIcon(color: Color, size: Dp = 13.dp) {
+    Canvas(Modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+
+        // body of the pencil
+        val body = Path().apply {
+            moveTo(w * 0.28f, h * 0.72f)
+            lineTo(w * 0.72f, h * 0.28f)
+            lineTo(w * 0.9f, h * 0.46f)
+            lineTo(w * 0.46f, h * 0.9f)
+            close()
+        }
+        drawPath(body, color)
+
+        // tip
+        val tip = Path().apply {
+            moveTo(w * 0.1f, h * 0.9f)
+            lineTo(w * 0.34f, h * 0.84f)
+            lineTo(w * 0.16f, h * 0.66f)
+            close()
+        }
+        drawPath(tip, color)
+    }
+}
+
 /** Circular arrow: an open arc plus a small arrowhead at its leading end. */
 @Composable
 fun ResetIcon(color: Color, size: Dp = 20.dp) {

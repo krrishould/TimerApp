@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import com.krrishkumar.focustimer.data.AppPreferences
 import com.krrishkumar.focustimer.data.SessionRepository
 import com.krrishkumar.focustimer.ui.theme.FocusTimerTheme
+import com.krrishkumar.focustimer.ui.timer.PomodoroEndBehavior
 
 class MainActivity : ComponentActivity() {
 
@@ -31,6 +32,9 @@ class MainActivity : ComponentActivity() {
             var is24Hour by remember { mutableStateOf(preferences.is24HourClock()) }
             var showSeconds by remember { mutableStateOf(preferences.isClockSecondsShown()) }
             var textSizeLevel by remember { mutableIntStateOf(preferences.getTextSizeLevel()) }
+            var endBehavior by remember {
+                mutableStateOf(PomodoroEndBehavior.from(preferences.getPomodoroEndBehavior()))
+            }
             var focusGestureEnabled by remember { mutableStateOf(preferences.isFocusGestureEnabled()) }
 
             FocusTimerTheme(darkTheme = isDarkTheme) {
@@ -55,6 +59,11 @@ class MainActivity : ComponentActivity() {
                     onTextSizeLevelChange = { level ->
                         textSizeLevel = level
                         preferences.setTextSizeLevel(level)
+                    },
+                    endBehavior = endBehavior,
+                    onEndBehaviorChange = { behavior ->
+                        endBehavior = behavior
+                        preferences.setPomodoroEndBehavior(behavior.name)
                     },
                     focusGestureEnabled = focusGestureEnabled,
                     onFocusGestureChange = { enabled ->

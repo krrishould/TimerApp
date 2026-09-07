@@ -33,6 +33,14 @@ class AppPreferences(context: Context) {
         prefs.edit().putBoolean(KEY_CLOCK_SECONDS, enabled).apply()
     }
 
+    /** Stored as the enum name; see ui.timer.PomodoroEndBehavior. */
+    fun getPomodoroEndBehavior(): String =
+        prefs.getString(KEY_POMODORO_END, DEFAULT_POMODORO_END) ?: DEFAULT_POMODORO_END
+
+    fun setPomodoroEndBehavior(name: String) {
+        prefs.edit().putString(KEY_POMODORO_END, name).apply()
+    }
+
     /** 0..4, where 2 is the default middle step. */
     fun getTextSizeLevel(): Int =
         prefs.getInt(KEY_TEXT_SIZE_LEVEL, DEFAULT_TEXT_SIZE_LEVEL).coerceIn(0, 4)
@@ -49,5 +57,7 @@ class AppPreferences(context: Context) {
         private const val KEY_CLOCK_SECONDS = "clock_show_seconds"
         private const val KEY_TEXT_SIZE_LEVEL = "text_size_level"
         const val DEFAULT_TEXT_SIZE_LEVEL = 2
+        private const val KEY_POMODORO_END = "pomodoro_end_behavior"
+        private const val DEFAULT_POMODORO_END = "OVERTIME"
     }
 }

@@ -1,5 +1,7 @@
 package com.krrishkumar.focustimer.ui.timer
 
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -15,6 +17,20 @@ import kotlinx.coroutines.launch
 
 enum class TimerPhase { WORK, BREAK }
 
+/** What happens when a focus period runs out. */
+enum class PomodoroEndBehavior {
+    /** Keep counting upwards until the user claims their break. */
+    OVERTIME,
+
+    /** Start the break straight away. */
+    AUTO_BREAK;
+
+    companion object {
+        fun from(name: String): PomodoroEndBehavior =
+            entries.firstOrNull { it.name == name } ?: OVERTIME
+    }
+}
+
 data class TimerUiState(
     /** false = plain countdown timer, true = Focus/Break pomodoro cycling */
     val pomodoroMode: Boolean = false,
@@ -23,7 +39,12 @@ data class TimerUiState(
     val workMinutes: Int = 25,
     val breakMinutes: Int = 5,
     val remainingMillis: Long = 25 * 60 * 1000L,
-    val isRunning: Boolean = false
+    val isRunning: Boolean = false,
+    /** Name applied to logged sessions; stays set until the user changes it. */
+    val activityName: String? = null,
+    /** True once a focus period has run out and the timer is counting upwards. */
+    val inOvertime: Boolean = false,
+    val overtimeMillis: Long = 0L
 )
 
 class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
@@ -34,18 +55,33 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
     private var tickJob: Job? = null
     private var phaseStartTimeMillis: Long = 0L
 
+    /** Set by the screen from the stored preference. */
+    var endBehavior: PomodoroEndBehavior = PomodoroEndBehavior.OVERTIME
+
     private fun TimerUiState.currentPhaseMinutes(): Int = when {
         !pomodoroMode -> timerMinutes
         phase == TimerPhase.WORK -> workMinutes
         else -> breakMinutes
     }
 
+    fun setActivityName(name: String) {
+        _uiState.update { it.copy(activityName = name.trim().ifBlank { null }) }
+    }
+
     fun start() {
         if (_uiState.value.isRunning) return
+        if (_uiState.value.inOvertime) {
+            runOvertime()
+            return
+        }
+        if (_uiState.value.remainingMillis <= 0) return
         phaseStartTimeMillis = System.currentTimeMillis()
+        runCountdown()
+    }
+
+    private fun runCountdown() {
         val base = SystemClock.elapsedRealtime()
         val startRemaining = _uiState.value.remainingMillis
-        if (startRemaining <= 0) return
         _uiState.update { it.copy(isRunning = true) }
         tickJob = viewModelScope.launch {
             while (true) {
@@ -61,6 +97,20 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
         }
     }
 
+    /** Counts upwards from whatever overtime has already accrued. */
+    private fun runOvertime() {
+        val base = SystemClock.elapsedRealtime()
+        val alreadyOvertime = _uiState.value.overtimeMillis
+        _uiState.update { it.copy(isRunning = true, inOvertime = true) }
+        tickJob = viewModelScope.launch {
+            while (true) {
+                val elapsed = SystemClock.elapsedRealtime() - base
+                _uiState.update { it.copy(overtimeMillis = alreadyOvertime + elapsed) }
+                delay(200)
+            }
+        }
+    }
+
     fun pause() {
         tickJob?.cancel()
         _uiState.update { it.copy(isRunning = false) }
@@ -68,21 +118,62 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
 
     fun reset() {
         tickJob?.cancel()
+        flushOvertime()
         _uiState.update {
-            val fresh = it.copy(phase = TimerPhase.WORK, isRunning = false)
+            val fresh = it.copy(
+                phase = TimerPhase.WORK,
+                isRunning = false,
+                inOvertime = false,
+                overtimeMillis = 0L
+            )
             fresh.copy(remainingMillis = fresh.currentPhaseMinutes() * 60 * 1000L)
         }
     }
 
     fun togglePomodoroMode() {
         tickJob?.cancel()
+        flushOvertime()
         _uiState.update {
             val next = it.copy(
                 pomodoroMode = !it.pomodoroMode,
                 phase = TimerPhase.WORK,
-                isRunning = false
+                isRunning = false,
+                inOvertime = false,
+                overtimeMillis = 0L
             )
             next.copy(remainingMillis = next.currentPhaseMinutes() * 60 * 1000L)
+        }
+    }
+
+    /** Ends overtime, records the whole stretch as one session, and starts the break. */
+    fun claimBreak() {
+        tickJob?.cancel()
+        flushOvertime()
+        _uiState.update {
+            it.copy(
+                phase = TimerPhase.BREAK,
+                inOvertime = false,
+                overtimeMillis = 0L,
+                isRunning = false,
+                remainingMillis = it.breakMinutes * 60 * 1000L
+            )
+        }
+        phaseStartTimeMillis = System.currentTimeMillis()
+        runCountdown()
+    }
+
+    /**
+     * Writes the pending focus-plus-overtime stretch as a single session. Called from
+     * every exit out of overtime so the work is never silently dropped.
+     */
+    private fun flushOvertime() {
+        val state = _uiState.value
+        if (!state.inOvertime) return
+        val worked = state.workMinutes * 60 * 1000L + state.overtimeMillis
+        val startedAt = phaseStartTimeMillis
+        val label = state.activityName
+        viewModelScope.launch {
+            repository.logSession(SessionType.POMODORO_WORK, startedAt, worked, label)
         }
     }
 
@@ -108,7 +199,7 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
         val clamped = minutes.coerceIn(min, max)
         _uiState.update { current ->
             val updated = apply(current, clamped)
-            if (!updated.isRunning) {
+            if (!updated.isRunning && !updated.inOvertime) {
                 updated.copy(remainingMillis = updated.currentPhaseMinutes() * 60 * 1000L)
             } else {
                 updated
@@ -120,26 +211,67 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
         val state = _uiState.value
 
         if (!state.pomodoroMode) {
-            viewModelScope.launch {
-                repository.logSession(SessionType.TIMER, phaseStartTimeMillis, state.timerMinutes * 60 * 1000L)
-            }
+            logSession(SessionType.TIMER, state.timerMinutes * 60 * 1000L, state.activityName)
+            chime()
             _uiState.update { it.copy(remainingMillis = it.timerMinutes * 60 * 1000L, isRunning = false) }
             return
         }
 
-        val finishedType =
-            if (state.phase == TimerPhase.WORK) SessionType.POMODORO_WORK else SessionType.POMODORO_BREAK
-        val finishedMinutes =
-            if (state.phase == TimerPhase.WORK) state.workMinutes else state.breakMinutes
-        viewModelScope.launch {
-            repository.logSession(finishedType, phaseStartTimeMillis, finishedMinutes * 60 * 1000L)
+        if (state.phase == TimerPhase.WORK) {
+            chime()
+            if (endBehavior == PomodoroEndBehavior.OVERTIME) {
+                // Nothing is logged yet: the focus period and the overtime that follows
+                // are recorded together once the break is claimed.
+                _uiState.update { it.copy(inOvertime = true, overtimeMillis = 0L) }
+                runOvertime()
+            } else {
+                logSession(SessionType.POMODORO_WORK, state.workMinutes * 60 * 1000L, state.activityName)
+                _uiState.update {
+                    it.copy(phase = TimerPhase.BREAK, remainingMillis = it.breakMinutes * 60 * 1000L)
+                }
+                phaseStartTimeMillis = System.currentTimeMillis()
+                runCountdown()
+            }
+            return
         }
 
-        val nextPhase = if (state.phase == TimerPhase.WORK) TimerPhase.BREAK else TimerPhase.WORK
+        // Break finished: record it and hand control back rather than looping.
+        logSession(SessionType.POMODORO_BREAK, state.breakMinutes * 60 * 1000L, null)
+        chime()
         _uiState.update {
-            val next = it.copy(phase = nextPhase, isRunning = false)
-            next.copy(remainingMillis = next.currentPhaseMinutes() * 60 * 1000L)
+            it.copy(
+                phase = TimerPhase.WORK,
+                isRunning = false,
+                remainingMillis = it.workMinutes * 60 * 1000L
+            )
         }
+    }
+
+    private fun logSession(type: SessionType, durationMillis: Long, label: String?) {
+        val startedAt = phaseStartTimeMillis
+        viewModelScope.launch {
+            repository.logSession(type, startedAt, durationMillis, label)
+        }
+    }
+
+    /**
+     * Short beep when a period ends. Only audible while the process is alive — there's
+     * no foreground service, so a long-backgrounded timer may not sound.
+     */
+    private fun chime() {
+        runCatching {
+            val tone = ToneGenerator(AudioManager.STREAM_ALARM, 70)
+            tone.startTone(ToneGenerator.TONE_PROP_BEEP2, 500)
+            viewModelScope.launch {
+                delay(900)
+                runCatching { tone.release() }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        tickJob?.cancel()
     }
 
     class Factory(private val repository: SessionRepository) : ViewModelProvider.Factory {

@@ -15,7 +15,9 @@ import kotlinx.coroutines.launch
 
 data class StopwatchUiState(
     val elapsedMillis: Long = 0L,
-    val isRunning: Boolean = false
+    val isRunning: Boolean = false,
+    /** Name applied to logged sessions; stays set until the user changes it. */
+    val activityName: String? = null
 )
 
 class StopwatchViewModel(private val repository: SessionRepository) : ViewModel() {
@@ -50,22 +52,28 @@ class StopwatchViewModel(private val repository: SessionRepository) : ViewModel(
         _uiState.update { it.copy(isRunning = false) }
     }
 
+    fun setActivityName(name: String) {
+        _uiState.update { it.copy(activityName = name.trim().ifBlank { null }) }
+    }
+
     fun finishAndLog() {
         tickJob?.cancel()
         val elapsed = _uiState.value.elapsedMillis
+        val label = _uiState.value.activityName
         if (elapsed > 0) {
             viewModelScope.launch {
-                repository.logSession(SessionType.STOPWATCH, sessionStartTimeMillis, elapsed)
+                repository.logSession(SessionType.STOPWATCH, sessionStartTimeMillis, elapsed, label)
             }
         }
         accumulatedMillis = 0L
-        _uiState.update { StopwatchUiState() }
+        // The activity name outlives the session it was set on.
+        _uiState.update { StopwatchUiState(activityName = label) }
     }
 
     fun reset() {
         tickJob?.cancel()
         accumulatedMillis = 0L
-        _uiState.update { StopwatchUiState() }
+        _uiState.update { StopwatchUiState(activityName = it.activityName) }
     }
 
     class Factory(private val repository: SessionRepository) : ViewModelProvider.Factory {

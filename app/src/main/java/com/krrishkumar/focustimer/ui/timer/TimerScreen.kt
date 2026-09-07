@@ -49,6 +49,8 @@ import com.krrishkumar.focustimer.ui.components.AnimatedTimeText
 import com.krrishkumar.focustimer.ui.components.fittedDigitSize
 import com.krrishkumar.focustimer.ui.components.focusDigitSize
 import com.krrishkumar.focustimer.ui.components.textSizeScale
+import com.krrishkumar.focustimer.ui.components.NameDialog
+import com.krrishkumar.focustimer.ui.components.PencilIcon
 import com.krrishkumar.focustimer.ui.components.PauseIcon
 import com.krrishkumar.focustimer.ui.components.PlayIcon
 import com.krrishkumar.focustimer.ui.components.ResetIcon
@@ -59,6 +61,7 @@ import com.krrishkumar.focustimer.ui.theme.LocalAppColors
 fun TimerScreen(
     repository: SessionRepository,
     textSizeLevel: Int,
+    endBehavior: PomodoroEndBehavior,
     modifier: Modifier = Modifier,
     focusMode: Boolean = false
 ) {
@@ -66,14 +69,22 @@ fun TimerScreen(
     val state by viewModel.uiState.collectAsState()
     val colors = LocalAppColors.current
     var editing by remember { mutableStateOf(false) }
+    var naming by remember { mutableStateOf(false) }
+
+    viewModel.endBehavior = endBehavior
 
     // Editing only makes sense for the plain timer while it's idle.
-    val canEdit = !state.pomodoroMode && !state.isRunning && !focusMode
+    val canEdit = !state.pomodoroMode && !state.isRunning && !state.inOvertime && !focusMode
     LaunchedEffect(canEdit) { if (!canEdit) editing = false }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val compact = maxHeight < 520.dp
-        val timeText = formatMillis(state.remainingMillis)
+        val timeText = if (state.inOvertime) {
+            "+" + formatMillis(state.overtimeMillis)
+        } else {
+            formatMillis(state.remainingMillis)
+        }
+        val timeColor = if (state.inOvertime) colors.overtime else colors.textPrimary
         val scale = textSizeScale(textSizeLevel)
         val contentWidth = maxWidth - 56.dp // the Column's 28dp padding on each side
         val digitSize = if (focusMode) {
@@ -95,11 +106,24 @@ fun TimerScreen(
         ) {
             Spacer(Modifier.weight(1f))
 
+            if (!focusMode) {
+                ActivityRow(
+                    name = state.activityName,
+                    colors = colors,
+                    onClick = { naming = true }
+                )
+                Spacer(Modifier.height(if (compact) 6.dp else 16.dp))
+            }
+
             if (state.pomodoroMode && !focusMode) {
                 Text(
-                    text = if (state.phase == TimerPhase.WORK) "FOCUS" else "BREAK",
+                    text = when {
+                        state.inOvertime -> "OVERTIME"
+                        state.phase == TimerPhase.WORK -> "FOCUS"
+                        else -> "BREAK"
+                    },
                     style = MaterialTheme.typography.labelLarge,
-                    color = colors.textSecondary
+                    color = if (state.inOvertime) colors.overtime else colors.textSecondary
                 )
                 Spacer(Modifier.height(if (compact) 4.dp else 14.dp))
             }
@@ -118,7 +142,7 @@ fun TimerScreen(
                 AnimatedTimeText(
                     text = timeText,
                     style = timeStyle,
-                    color = colors.textPrimary,
+                    color = timeColor,
                     modifier = if (canEdit) {
                         Modifier.clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -142,7 +166,26 @@ fun TimerScreen(
             Spacer(Modifier.weight(1f))
 
             if (!focusMode) {
-                AnimatedVisibility(visible = state.pomodoroMode) {
+                AnimatedVisibility(visible = state.inOvertime) {
+                    Box(
+                        modifier = Modifier
+                            .padding(bottom = if (compact) 10.dp else 20.dp)
+                            .background(colors.overtime, RoundedCornerShape(50))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { viewModel.claimBreak() }
+                            .padding(horizontal = 24.dp, vertical = 11.dp)
+                    ) {
+                        Text(
+                            text = "Claim break",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = colors.onAccent
+                        )
+                    }
+                }
+
+                AnimatedVisibility(visible = state.pomodoroMode && !state.inOvertime) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         modifier = Modifier.fillMaxWidth().padding(bottom = if (compact) 8.dp else 20.dp)
@@ -202,6 +245,42 @@ fun TimerScreen(
                 Spacer(Modifier.height(if (compact) 12.dp else 28.dp))
             }
         }
+    }
+
+    if (naming) {
+        NameDialog(
+            title = "Name this activity",
+            placeholder = "e.g. Physics revision",
+            initialValue = state.activityName ?: "",
+            onSave = {
+                viewModel.setActivityName(it)
+                naming = false
+            },
+            onDismiss = { naming = false }
+        )
+    }
+}
+
+/** Subtle, tappable line showing what this stretch of time is being spent on. */
+@Composable
+private fun ActivityRow(name: String?, colors: AppColors, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(6.dp)
+    ) {
+        Text(
+            text = name ?: "Add activity",
+            style = MaterialTheme.typography.labelMedium,
+            color = if (name != null) colors.textSecondary else colors.textMuted
+        )
+        PencilIcon(color = colors.textMuted)
     }
 }
 

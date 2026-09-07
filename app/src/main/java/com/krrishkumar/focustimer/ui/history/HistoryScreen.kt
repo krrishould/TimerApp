@@ -45,6 +45,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.krrishkumar.focustimer.data.SessionRepository
 import com.krrishkumar.focustimer.data.SessionType
 import com.krrishkumar.focustimer.data.WorkSession
+import com.krrishkumar.focustimer.ui.components.NameDialog
 import com.krrishkumar.focustimer.ui.theme.AppColors
 import com.krrishkumar.focustimer.ui.theme.LocalAppColors
 import java.text.SimpleDateFormat
@@ -143,9 +144,10 @@ fun HistoryScreen(repository: SessionRepository, modifier: Modifier = Modifier) 
     }
 
     editing?.let { session ->
-        LabelDialog(
-            session = session,
-            colors = colors,
+        NameDialog(
+            title = "Name this session",
+            placeholder = defaultLabel(session.type),
+            initialValue = session.label ?: "",
             onSave = { label ->
                 viewModel.setLabel(session, label)
                 editing = null
@@ -249,91 +251,6 @@ private fun SessionRow(session: WorkSession, colors: AppColors, onClick: () -> U
         )
     }
     Spacer(Modifier.height(10.dp))
-}
-
-@Composable
-private fun LabelDialog(
-    session: WorkSession,
-    colors: AppColors,
-    onSave: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var text by remember { mutableStateOf(session.label ?: "") }
-    val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .width(300.dp)
-                .background(colors.surface, RoundedCornerShape(24.dp))
-                .padding(24.dp)
-        ) {
-            Text("Name this session", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
-            Spacer(Modifier.height(16.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(colors.surfaceRaised, RoundedCornerShape(14.dp))
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
-            ) {
-                if (text.isEmpty()) {
-                    Text(
-                        text = defaultLabel(session.type),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = colors.textMuted
-                    )
-                }
-                BasicTextField(
-                    value = text,
-                    onValueChange = { if (it.length <= 40) text = it },
-                    textStyle = TextStyle(
-                        color = colors.textPrimary,
-                        fontSize = MaterialTheme.typography.bodyLarge.fontSize
-                    ),
-                    singleLine = true,
-                    cursorBrush = SolidColor(colors.accent),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { onSave(text) }),
-                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
-                )
-            }
-
-            Spacer(Modifier.height(20.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                DialogButton("Cancel", filled = false, colors = colors, onClick = onDismiss, modifier = Modifier.weight(1f))
-                DialogButton("Save", filled = true, colors = colors, onClick = { onSave(text) }, modifier = Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun DialogButton(
-    label: String,
-    filled: Boolean,
-    colors: AppColors,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .background(if (filled) colors.accent else colors.surfaceRaised, RoundedCornerShape(14.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium,
-            color = if (filled) colors.onAccent else colors.textSecondary
-        )
-    }
 }
 
 private fun defaultLabel(type: SessionType) = when (type) {

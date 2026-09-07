@@ -60,6 +60,7 @@ import com.krrishkumar.focustimer.ui.history.HistoryScreen
 import com.krrishkumar.focustimer.ui.stopwatch.StopwatchScreen
 import com.krrishkumar.focustimer.ui.theme.AppColors
 import com.krrishkumar.focustimer.ui.theme.LocalAppColors
+import com.krrishkumar.focustimer.ui.timer.PomodoroEndBehavior
 import com.krrishkumar.focustimer.ui.timer.TimerScreen
 import kotlinx.coroutines.delay
 
@@ -76,6 +77,8 @@ fun FocusTimerApp(
     onShowSecondsChange: (Boolean) -> Unit,
     textSizeLevel: Int,
     onTextSizeLevelChange: (Int) -> Unit,
+    endBehavior: PomodoroEndBehavior,
+    onEndBehaviorChange: (PomodoroEndBehavior) -> Unit,
     focusGestureEnabled: Boolean,
     onFocusGestureChange: (Boolean) -> Unit
 ) {
@@ -181,7 +184,7 @@ fun FocusTimerApp(
             }
         ) { innerPadding ->
             when (selectedTab) {
-                0 -> TimerScreen(repository, textSizeLevel, Modifier.padding(innerPadding), focusMode = inFocus)
+                0 -> TimerScreen(repository, textSizeLevel, endBehavior, Modifier.padding(innerPadding), focusMode = inFocus)
                 1 -> StopwatchScreen(repository, textSizeLevel, Modifier.padding(innerPadding), focusMode = inFocus)
                 2 -> ClockScreen(is24Hour, showSeconds, textSizeLevel, Modifier.padding(innerPadding), focusMode = inFocus)
                 3 -> HistoryScreen(repository, Modifier.padding(innerPadding))
@@ -213,6 +216,8 @@ fun FocusTimerApp(
             onShowSecondsChange = onShowSecondsChange,
             textSizeLevel = textSizeLevel,
             onTextSizeLevelChange = onTextSizeLevelChange,
+            endBehavior = endBehavior,
+            onEndBehaviorChange = onEndBehaviorChange,
             focusGestureEnabled = focusGestureEnabled,
             onFocusGestureChange = onFocusGestureChange,
             canEnterFocus = focusable,
@@ -235,6 +240,8 @@ private fun SettingsDialog(
     onShowSecondsChange: (Boolean) -> Unit,
     textSizeLevel: Int,
     onTextSizeLevelChange: (Int) -> Unit,
+    endBehavior: PomodoroEndBehavior,
+    onEndBehaviorChange: (PomodoroEndBehavior) -> Unit,
     focusGestureEnabled: Boolean,
     onFocusGestureChange: (Boolean) -> Unit,
     canEnterFocus: Boolean,
@@ -289,6 +296,35 @@ private fun SettingsDialog(
                     )
                 )
             }
+
+            Spacer(Modifier.height(28.dp))
+
+            Text("Pomodoro", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                SegmentedOption(
+                    "Overtime",
+                    selected = endBehavior == PomodoroEndBehavior.OVERTIME,
+                    onClick = { onEndBehaviorChange(PomodoroEndBehavior.OVERTIME) },
+                    modifier = Modifier.weight(1f)
+                )
+                SegmentedOption(
+                    "Auto break",
+                    selected = endBehavior == PomodoroEndBehavior.AUTO_BREAK,
+                    onClick = { onEndBehaviorChange(PomodoroEndBehavior.AUTO_BREAK) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = if (endBehavior == PomodoroEndBehavior.OVERTIME) {
+                    "When focus ends the timer keeps counting up, and the extra time still counts as work."
+                } else {
+                    "When focus ends the break starts on its own."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textMuted
+            )
 
             Spacer(Modifier.height(28.dp))
 

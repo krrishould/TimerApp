@@ -7,10 +7,20 @@ import kotlinx.coroutines.withContext
 class SessionRepository(context: Context) {
     private val dbHelper = SessionDatabaseHelper(context)
 
-    suspend fun logSession(type: SessionType, startTimeMillis: Long, durationMillis: Long) {
+    suspend fun logSession(
+        type: SessionType,
+        startTimeMillis: Long,
+        durationMillis: Long,
+        label: String? = null
+    ) {
         withContext(Dispatchers.IO) {
             dbHelper.insertSession(
-                WorkSession(type = type, startTimeMillis = startTimeMillis, durationMillis = durationMillis)
+                WorkSession(
+                    type = type,
+                    startTimeMillis = startTimeMillis,
+                    durationMillis = durationMillis,
+                    label = label
+                )
             )
         }
     }

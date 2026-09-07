@@ -19,7 +19,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,6 +34,8 @@ import com.krrishkumar.focustimer.ui.components.AnimatedTimeText
 import com.krrishkumar.focustimer.ui.components.fittedDigitSize
 import com.krrishkumar.focustimer.ui.components.focusDigitSize
 import com.krrishkumar.focustimer.ui.components.textSizeScale
+import com.krrishkumar.focustimer.ui.components.NameDialog
+import com.krrishkumar.focustimer.ui.components.PencilIcon
 import com.krrishkumar.focustimer.ui.components.PauseIcon
 import com.krrishkumar.focustimer.ui.components.PlayIcon
 import com.krrishkumar.focustimer.ui.components.ResetIcon
@@ -47,6 +51,7 @@ fun StopwatchScreen(
     val viewModel: StopwatchViewModel = viewModel(factory = StopwatchViewModel.Factory(repository))
     val state by viewModel.uiState.collectAsState()
     val colors = LocalAppColors.current
+    var naming by remember { mutableStateOf(false) }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val compact = maxHeight < 520.dp
@@ -69,6 +74,27 @@ fun StopwatchScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.weight(1f))
+
+            if (!focusMode) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { naming = true }
+                        .padding(6.dp)
+                ) {
+                    Text(
+                        text = state.activityName ?: "Add activity",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (state.activityName != null) colors.textSecondary else colors.textMuted
+                    )
+                    PencilIcon(color = colors.textMuted)
+                }
+                Spacer(Modifier.height(if (compact) 6.dp else 16.dp))
+            }
 
             AnimatedTimeText(
                 text = timeText,
@@ -110,6 +136,19 @@ fun StopwatchScreen(
                 Spacer(Modifier.height(if (compact) 12.dp else 28.dp))
             }
         }
+    }
+
+    if (naming) {
+        NameDialog(
+            title = "Name this activity",
+            placeholder = "e.g. Reading",
+            initialValue = state.activityName ?: "",
+            onSave = {
+                viewModel.setActivityName(it)
+                naming = false
+            },
+            onDismiss = { naming = false }
+        )
     }
 }
 
