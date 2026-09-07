@@ -1,5 +1,6 @@
 package com.krrishkumar.focustimer
 
+import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -47,6 +48,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.krrishkumar.focustimer.data.SessionRepository
 import com.krrishkumar.focustimer.ui.components.observeDoubleTap
 import com.krrishkumar.focustimer.ui.clock.ClockScreen
@@ -66,6 +70,8 @@ fun FocusTimerApp(
     onThemeChange: (Boolean) -> Unit,
     is24Hour: Boolean,
     on24HourChange: (Boolean) -> Unit,
+    showSeconds: Boolean,
+    onShowSecondsChange: (Boolean) -> Unit,
     focusGestureEnabled: Boolean,
     onFocusGestureChange: (Boolean) -> Unit
 ) {
@@ -94,7 +100,24 @@ fun FocusTimerApp(
     val view = LocalView.current
     DisposableEffect(inFocus) {
         view.keepScreenOn = inFocus
-        onDispose { view.keepScreenOn = false }
+
+        // Focus mode goes fully immersive: the status/navigation bars slide away so
+        // notifications aren't sitting above the time. A swipe brings them back
+        // temporarily without leaving focus mode.
+        val window = (view.context as? Activity)?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        controller?.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (inFocus) {
+            controller?.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+        }
+
+        onDispose {
+            view.keepScreenOn = false
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+        }
     }
 
     Box(
@@ -156,7 +179,7 @@ fun FocusTimerApp(
             when (selectedTab) {
                 0 -> TimerScreen(repository, Modifier.padding(innerPadding), focusMode = inFocus)
                 1 -> StopwatchScreen(repository, Modifier.padding(innerPadding), focusMode = inFocus)
-                2 -> ClockScreen(is24Hour, Modifier.padding(innerPadding), focusMode = inFocus)
+                2 -> ClockScreen(is24Hour, showSeconds, Modifier.padding(innerPadding), focusMode = inFocus)
                 3 -> HistoryScreen(repository, Modifier.padding(innerPadding))
             }
         }
@@ -182,6 +205,8 @@ fun FocusTimerApp(
             onThemeSelect = onThemeChange,
             is24Hour = is24Hour,
             on24HourSelect = on24HourChange,
+            showSeconds = showSeconds,
+            onShowSecondsChange = onShowSecondsChange,
             focusGestureEnabled = focusGestureEnabled,
             onFocusGestureChange = onFocusGestureChange,
             canEnterFocus = focusable,
@@ -200,6 +225,8 @@ private fun SettingsDialog(
     onThemeSelect: (Boolean) -> Unit,
     is24Hour: Boolean,
     on24HourSelect: (Boolean) -> Unit,
+    showSeconds: Boolean,
+    onShowSecondsChange: (Boolean) -> Unit,
     focusGestureEnabled: Boolean,
     onFocusGestureChange: (Boolean) -> Unit,
     canEnterFocus: Boolean,
@@ -232,6 +259,27 @@ private fun SettingsDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 SegmentedOption("12-hour", selected = !is24Hour, onClick = { on24HourSelect(false) }, modifier = Modifier.weight(1f))
                 SegmentedOption("24-hour", selected = is24Hour, onClick = { on24HourSelect(true) }, modifier = Modifier.weight(1f))
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Show seconds", style = MaterialTheme.typography.bodyLarge, color = colors.textSecondary)
+                Spacer(Modifier.weight(1f))
+                Switch(
+                    checked = showSeconds,
+                    onCheckedChange = onShowSecondsChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = colors.onAccent,
+                        checkedTrackColor = colors.accent,
+                        uncheckedThumbColor = colors.textMuted,
+                        uncheckedTrackColor = colors.surfaceRaised,
+                        uncheckedBorderColor = colors.border
+                    )
+                )
             }
 
             Spacer(Modifier.height(28.dp))

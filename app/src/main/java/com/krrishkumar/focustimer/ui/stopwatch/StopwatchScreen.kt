@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.krrishkumar.focustimer.data.SessionRepository
 import com.krrishkumar.focustimer.ui.components.AnimatedTimeText
+import com.krrishkumar.focustimer.ui.components.focusDigitSize
 import com.krrishkumar.focustimer.ui.components.PauseIcon
 import com.krrishkumar.focustimer.ui.components.PlayIcon
 import com.krrishkumar.focustimer.ui.components.ResetIcon
@@ -46,7 +47,13 @@ fun StopwatchScreen(
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val compact = maxHeight < 520.dp
-        val digitSize = if (compact) 44.sp else 76.sp
+        val timeText = formatMillis(state.elapsedMillis)
+        val digitSize = if (focusMode) {
+            // minus the Column's 28dp horizontal padding on each side
+            focusDigitSize(timeText, maxWidth - 56.dp, maxHeight)
+        } else {
+            if (compact) 44.sp else 76.sp
+        }
 
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp),
@@ -55,7 +62,7 @@ fun StopwatchScreen(
             Spacer(Modifier.weight(1f))
 
             AnimatedTimeText(
-                text = formatMillis(state.elapsedMillis),
+                text = timeText,
                 style = MaterialTheme.typography.displayLarge.copy(fontSize = digitSize),
                 color = colors.textPrimary
             )

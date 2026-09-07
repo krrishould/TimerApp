@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.krrishkumar.focustimer.data.SessionRepository
 import com.krrishkumar.focustimer.ui.components.AnimatedTimeText
+import com.krrishkumar.focustimer.ui.components.focusDigitSize
 import com.krrishkumar.focustimer.ui.components.PauseIcon
 import com.krrishkumar.focustimer.ui.components.PlayIcon
 import com.krrishkumar.focustimer.ui.components.ResetIcon
@@ -69,7 +70,13 @@ fun TimerScreen(
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val compact = maxHeight < 520.dp
-        val digitSize = if (compact) 44.sp else 76.sp
+        val timeText = formatMillis(state.remainingMillis)
+        val digitSize = if (focusMode) {
+            // minus the Column's 28dp horizontal padding on each side
+            focusDigitSize(timeText, maxWidth - 56.dp, maxHeight)
+        } else {
+            if (compact) 44.sp else 76.sp
+        }
         val timeStyle = MaterialTheme.typography.displayLarge.copy(fontSize = digitSize)
 
         Column(
@@ -99,7 +106,7 @@ fun TimerScreen(
                 )
             } else {
                 AnimatedTimeText(
-                    text = formatMillis(state.remainingMillis),
+                    text = timeText,
                     style = timeStyle,
                     color = colors.textPrimary,
                     modifier = if (canEdit) {

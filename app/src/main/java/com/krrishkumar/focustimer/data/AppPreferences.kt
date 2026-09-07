@@ -27,10 +27,17 @@ class AppPreferences(context: Context) {
         prefs.edit().putBoolean(KEY_FOCUS_GESTURE, enabled).apply()
     }
 
+    fun isClockSecondsShown(): Boolean = prefs.getBoolean(KEY_CLOCK_SECONDS, true)
+
+    fun setClockSecondsShown(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_CLOCK_SECONDS, enabled).apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "settings"
         private const val KEY_DARK_MODE = "dark_mode"
         private const val KEY_24_HOUR_CLOCK = "clock_24_hour"
         private const val KEY_FOCUS_GESTURE = "focus_gesture_enabled"
+        private const val KEY_CLOCK_SECONDS = "clock_show_seconds"
     }
 }

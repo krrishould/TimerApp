@@ -20,20 +20,24 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.krrishkumar.focustimer.ui.components.AnimatedTimeText
+import com.krrishkumar.focustimer.ui.components.focusDigitSize
 import com.krrishkumar.focustimer.ui.theme.LocalAppColors
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val TIME_24H = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.getDefault())
-private val TIME_12H = DateTimeFormatter.ofPattern("h:mm:ss", Locale.getDefault())
+private val TIME_24H_SECONDS = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.getDefault())
+private val TIME_24H = DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
+private val TIME_12H_SECONDS = DateTimeFormatter.ofPattern("h:mm:ss", Locale.getDefault())
+private val TIME_12H = DateTimeFormatter.ofPattern("h:mm", Locale.getDefault())
 private val MERIDIEM = DateTimeFormatter.ofPattern("a", Locale.getDefault())
 private val DATE_FORMAT = DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault())
 
 @Composable
 fun ClockScreen(
     is24Hour: Boolean,
+    showSeconds: Boolean,
     modifier: Modifier = Modifier,
     focusMode: Boolean = false
 ) {
@@ -50,9 +54,23 @@ fun ClockScreen(
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val compact = maxHeight < 520.dp
-        // 8 glyphs either way once AM/PM is split out, so one size fits both formats.
-        val digitSize = if (compact) 36.sp else 64.sp
-        val meridiemSize = if (compact) 16.sp else 26.sp
+        val timeFormat = when {
+            is24Hour && showSeconds -> TIME_24H_SECONDS
+            is24Hour -> TIME_24H
+            showSeconds -> TIME_12H_SECONDS
+            else -> TIME_12H
+        }
+        val timeText = now.format(timeFormat)
+        // The row sits inside the Column's 32dp horizontal padding, and the AM/PM
+        // suffix needs its own share of what's left.
+        val contentWidth = maxWidth - 64.dp
+        val widthBudget = if (is24Hour) contentWidth else contentWidth * 0.76f
+        val digitSize = if (focusMode) {
+            focusDigitSize(timeText, widthBudget, maxHeight)
+        } else {
+            if (compact) 36.sp else 64.sp
+        }
+        val meridiemSize = if (focusMode) digitSize * 0.32f else if (compact) 16.sp else 26.sp
         val gapSmall = if (compact) 6.dp else 16.dp
 
         Column(
@@ -63,7 +81,7 @@ fun ClockScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     AnimatedTimeText(
-                        text = now.format(if (is24Hour) TIME_24H else TIME_12H),
+                        text = timeText,
                         style = MaterialTheme.typography.displayLarge.copy(fontSize = digitSize),
                         color = colors.textPrimary
                     )

@@ -12,6 +12,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
+
+/**
+ * Font size for focus mode, where the time is the only thing on screen and should
+ * fill it. Derived from the space actually available rather than a fixed value, so
+ * a short landscape window gets a large clock instead of the cramped compact size.
+ */
+fun focusDigitSize(text: String, maxWidth: Dp, maxHeight: Dp): TextUnit {
+    // Space Grotesk advances: digits are roughly 0.62em, the colon far narrower.
+    val ems = text.sumOf { if (it == ':') 0.30 else 0.62 }.toFloat()
+    val widthLimited = (maxWidth.value * 0.92f) / ems
+    val heightLimited = maxHeight.value * 0.45f
+    return minOf(widthLimited, heightLimited).coerceIn(48f, 190f).sp
+}
 
 /**
  * Renders a time string one character at a time so only the characters that actually

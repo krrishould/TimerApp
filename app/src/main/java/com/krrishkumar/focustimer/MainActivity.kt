@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             var isDarkTheme by remember { mutableStateOf(preferences.isDarkMode()) }
             var is24Hour by remember { mutableStateOf(preferences.is24HourClock()) }
+            var showSeconds by remember { mutableStateOf(preferences.isClockSecondsShown()) }
             var focusGestureEnabled by remember { mutableStateOf(preferences.isFocusGestureEnabled()) }
 
             FocusTimerTheme(darkTheme = isDarkTheme) {
@@ -42,6 +43,11 @@ class MainActivity : ComponentActivity() {
                     on24HourChange = { enabled ->
                         is24Hour = enabled
                         preferences.set24HourClock(enabled)
+                    },
+                    showSeconds = showSeconds,
+                    onShowSecondsChange = { enabled ->
+                        showSeconds = enabled
+                        preferences.setClockSecondsShown(enabled)
                     },
                     focusGestureEnabled = focusGestureEnabled,
                     onFocusGestureChange = { enabled ->
