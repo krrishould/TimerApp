@@ -205,7 +205,8 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
         setTimerMinutes(_uiState.value.timerMinutes + delta)
     }
 
-    fun setTimerMinutes(minutes: Int) = updateMinutes(minutes, 1, 600) { state, value ->
+    /** Bounded only by what the four-digit editor can express — a little under a week. */
+    fun setTimerMinutes(minutes: Int) = updateMinutes(minutes, 1, MAX_TIMER_MINUTES) { state, value ->
         state.copy(timerMinutes = value)
     }
 
@@ -300,6 +301,10 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         tickJob?.cancel()
+    }
+
+    companion object {
+        const val MAX_TIMER_MINUTES = 9999
     }
 
     class Factory(private val repository: SessionRepository) : ViewModelProvider.Factory {

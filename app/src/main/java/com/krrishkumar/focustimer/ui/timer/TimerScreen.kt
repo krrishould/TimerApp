@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -113,13 +114,11 @@ fun TimerScreen(
         }
         val timeStyle = MaterialTheme.typography.displayLarge.copy(fontSize = digitSize)
 
-        // The editor is a different shape from the running clock — at most three digits
-        // beside a "min" label — so it gets its own fit. Sizing it from the clock's fit
-        // let the digits overflow the field and clip.
+        // The editor is a different shape from the running clock — a few digits beside a
+        // "min" label — so it fits itself to the width left over. Sizing it from the
+        // clock's fit let the digits overflow the field and clip.
         val minLabelWidth = 56.dp
-        val editorDigitSize =
-            fittedDigitSize("888", contentWidth - minLabelWidth, (base * scale).sp)
-        val editorFieldWidth = measuredTextWidth("888", editorDigitSize) + 16.dp
+        val editorWidth = contentWidth - minLabelWidth
 
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp),
@@ -152,8 +151,9 @@ fun TimerScreen(
             if (editing) {
                 MinutesEditor(
                     initialMinutes = state.timerMinutes,
-                    textStyle = timeStyle.copy(fontSize = editorDigitSize),
-                    fieldWidth = editorFieldWidth,
+                    textStyle = timeStyle,
+                    availableWidth = editorWidth,
+                    preferredSize = (base * scale).sp,
                     colors = colors,
                     onCommit = { minutes ->
                         viewModel.setTimerMinutes(minutes)
@@ -342,11 +342,18 @@ private fun ActivityRow(name: String?, colors: AppColors, onClick: () -> Unit) {
 private fun MinutesEditor(
     initialMinutes: Int,
     textStyle: TextStyle,
-    fieldWidth: Dp,
+    availableWidth: Dp,
+    preferredSize: TextUnit,
     colors: AppColors,
     onCommit: (Int) -> Unit
 ) {
     var text by remember { mutableStateOf(initialMinutes.toString()) }
+
+    // Hold room for three digits even when fewer are typed, so the field doesn't twitch
+    // on every keystroke; a fourth widens it once, shrinking the type only if it must.
+    val digits = "8".repeat(maxOf(3, text.length))
+    val digitSize = fittedDigitSize(digits, availableWidth, preferredSize)
+    val fieldWidth = measuredTextWidth(digits, digitSize) + 16.dp
     // onFocusChanged fires once with isFocused=false before the request lands; without this
     // guard the editor would commit and close itself the instant it appeared.
     var hasFocused by remember { mutableStateOf(false) }
@@ -358,8 +365,12 @@ private fun MinutesEditor(
     Row(verticalAlignment = Alignment.Bottom) {
         BasicTextField(
             value = text,
-            onValueChange = { new -> if (new.length <= 3 && new.all { it.isDigit() }) text = new },
-            textStyle = textStyle.copy(color = colors.textPrimary, textAlign = TextAlign.Center),
+            onValueChange = { new -> if (new.length <= 4 && new.all { it.isDigit() }) text = new },
+            textStyle = textStyle.copy(
+                fontSize = digitSize,
+                color = colors.textPrimary,
+                textAlign = TextAlign.Center
+            ),
             singleLine = true,
             cursorBrush = SolidColor(colors.accent),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
