@@ -3,6 +3,7 @@ package com.krrishkumar.focustimer.ui.timer
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,11 +37,16 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -48,6 +54,7 @@ import com.krrishkumar.focustimer.data.SessionRepository
 import com.krrishkumar.focustimer.ui.components.AnimatedTimeText
 import com.krrishkumar.focustimer.ui.components.fittedDigitSize
 import com.krrishkumar.focustimer.ui.components.focusDigitSize
+import com.krrishkumar.focustimer.ui.components.measuredTextWidth
 import com.krrishkumar.focustimer.ui.components.textSizeScale
 import com.krrishkumar.focustimer.ui.components.NameDialog
 import com.krrishkumar.focustimer.ui.components.PencilIcon
@@ -71,6 +78,10 @@ fun TimerScreen(
     val colors = LocalAppColors.current
     var editing by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+    // How far the finger travels per minute. Loose enough to be controllable, tight
+    // enough that a long timer doesn't need a marathon drag.
+    val dragStepPx = with(LocalDensity.current) { 14.dp.toPx() }
 
     viewModel.endBehavior = endBehavior
     viewModel.keepIncompleteCycles = keepIncompleteCycles
@@ -89,18 +100,26 @@ fun TimerScreen(
         val timeColor = if (state.inOvertime) colors.overtime else colors.textPrimary
         val scale = textSizeScale(textSizeLevel)
         val contentWidth = maxWidth - 56.dp // the Column's 28dp padding on each side
+        // Bigger on tablets, where a phone-sized number looks lost.
+        val base = when {
+            compact -> 48f
+            maxWidth >= 600.dp -> 132f
+            else -> 92f
+        }
         val digitSize = if (focusMode) {
             focusDigitSize(timeText, contentWidth, maxHeight, scale)
         } else {
-            // Bigger on tablets, where a phone-sized number looks lost.
-            val base = when {
-                compact -> 48f
-                maxWidth >= 600.dp -> 132f
-                else -> 92f
-            }
             fittedDigitSize(timeText, contentWidth, (base * scale).sp)
         }
         val timeStyle = MaterialTheme.typography.displayLarge.copy(fontSize = digitSize)
+
+        // The editor is a different shape from the running clock — at most three digits
+        // beside a "min" label — so it gets its own fit. Sizing it from the clock's fit
+        // let the digits overflow the field and clip.
+        val minLabelWidth = 56.dp
+        val editorDigitSize =
+            fittedDigitSize("888", contentWidth - minLabelWidth, (base * scale).sp)
+        val editorFieldWidth = measuredTextWidth("888", editorDigitSize) + 16.dp
 
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp),
@@ -133,7 +152,8 @@ fun TimerScreen(
             if (editing) {
                 MinutesEditor(
                     initialMinutes = state.timerMinutes,
-                    textStyle = timeStyle,
+                    textStyle = timeStyle.copy(fontSize = editorDigitSize),
+                    fieldWidth = editorFieldWidth,
                     colors = colors,
                     onCommit = { minutes ->
                         viewModel.setTimerMinutes(minutes)
@@ -146,10 +166,15 @@ fun TimerScreen(
                     style = timeStyle,
                     color = timeColor,
                     modifier = if (canEdit) {
-                        Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { editing = true }
+                        Modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { editing = true }
+                            .dragToAdjustMinutes(dragStepPx) { step ->
+                                viewModel.adjustTimerMinutes(step)
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
                     } else {
                         Modifier
                     }
@@ -159,7 +184,7 @@ fun TimerScreen(
             if (canEdit && !editing) {
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "Tap the time to change it",
+                    text = "Tap to type, or drag up and down",
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.textMuted
                 )
@@ -263,6 +288,33 @@ fun TimerScreen(
     }
 }
 
+/**
+ * Vertical drag on the time, used as a coarse dial: up adds minutes, down removes them.
+ * Steps are emitted during the drag rather than on release, so the number tracks the
+ * finger, and the drag is consumed so the tap-to-type click doesn't also fire.
+ */
+private fun Modifier.dragToAdjustMinutes(
+    stepPx: Float,
+    onStep: (Int) -> Unit
+): Modifier = pointerInput(stepPx) {
+    var carried = 0f
+    detectVerticalDragGestures(
+        onDragEnd = { carried = 0f },
+        onDragCancel = { carried = 0f }
+    ) { change, dragAmount ->
+        change.consume()
+        carried -= dragAmount
+        while (carried >= stepPx) {
+            onStep(1)
+            carried -= stepPx
+        }
+        while (carried <= -stepPx) {
+            onStep(-1)
+            carried += stepPx
+        }
+    }
+}
+
 /** Subtle, tappable line showing what this stretch of time is being spent on. */
 @Composable
 private fun ActivityRow(name: String?, colors: AppColors, onClick: () -> Unit) {
@@ -290,6 +342,7 @@ private fun ActivityRow(name: String?, colors: AppColors, onClick: () -> Unit) {
 private fun MinutesEditor(
     initialMinutes: Int,
     textStyle: TextStyle,
+    fieldWidth: Dp,
     colors: AppColors,
     onCommit: (Int) -> Unit
 ) {
@@ -312,7 +365,7 @@ private fun MinutesEditor(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { commit() }),
             modifier = Modifier
-                .width(160.dp)
+                .width(fieldWidth)
                 .focusRequester(focusRequester)
                 .onFocusChanged { focusState ->
                     if (focusState.isFocused) hasFocused = true

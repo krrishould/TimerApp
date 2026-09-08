@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 
@@ -47,6 +48,12 @@ fun fittedDigitSize(text: String, maxWidth: Dp, preferred: TextUnit): TextUnit {
     val fits = (maxWidth.value * 0.94f) / emWidth(text)
     return minOf(preferred.value, fits).sp
 }
+
+/**
+ * Roughly how wide [text] renders at [size], using the same advances as the fitting
+ * helpers above. Good enough to size a field around a known number of digits.
+ */
+fun measuredTextWidth(text: String, size: TextUnit): Dp = (emWidth(text) * size.value).dp
 
 /**
  * Renders a time string one character at a time so only the characters that actually

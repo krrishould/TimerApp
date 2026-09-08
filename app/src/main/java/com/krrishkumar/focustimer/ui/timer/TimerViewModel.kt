@@ -197,6 +197,14 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
         logSession(type, elapsed, state.activityName)
     }
 
+    /**
+     * Nudges the countdown by whole minutes. Reads the current value itself so the drag
+     * gesture never works from a stale snapshot of the state.
+     */
+    fun adjustTimerMinutes(delta: Int) {
+        setTimerMinutes(_uiState.value.timerMinutes + delta)
+    }
+
     fun setTimerMinutes(minutes: Int) = updateMinutes(minutes, 1, 600) { state, value ->
         state.copy(timerMinutes = value)
     }
