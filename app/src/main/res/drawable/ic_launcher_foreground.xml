@@ -28,6 +28,13 @@
         android:strokeWidth="5"
         android:strokeLineCap="round" />
 
+    <!-- the sand still falling: a thin trickle, stopping just short of the pile -->
+    <path
+        android:pathData="M54,61 L54,70"
+        android:strokeColor="#0A0A0C"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+
     <!-- lower chamber -->
     <path
         android:pathData="M38,78 L70,78 L54,54 Z"
