@@ -102,7 +102,8 @@ fun StopwatchScreen(
             AnimatedTimeText(
                 text = timeText,
                 style = MaterialTheme.typography.displayLarge.copy(fontSize = digitSize),
-                color = colors.textPrimary
+                // Dimmed while paused in focus mode, where a tap is the only control.
+                color = colors.textPrimary.copy(alpha = if (focusMode && !state.isRunning) 0.4f else 1f)
             )
 
             Spacer(Modifier.weight(1f))

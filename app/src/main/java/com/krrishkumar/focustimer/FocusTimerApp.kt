@@ -57,7 +57,7 @@ import com.krrishkumar.focustimer.data.SessionRepository
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.krrishkumar.focustimer.ui.components.GearIcon
-import com.krrishkumar.focustimer.ui.components.observeDoubleTap
+import com.krrishkumar.focustimer.ui.components.observeTaps
 import com.krrishkumar.focustimer.ui.components.TEXT_SIZE_STEPS
 import com.krrishkumar.focustimer.ui.clock.ClockScreen
 import com.krrishkumar.focustimer.ui.history.HistoryScreen
@@ -66,9 +66,16 @@ import com.krrishkumar.focustimer.ui.theme.AppColors
 import com.krrishkumar.focustimer.ui.theme.LocalAppColors
 import com.krrishkumar.focustimer.ui.timer.PomodoroEndBehavior
 import com.krrishkumar.focustimer.ui.timer.TimerScreen
+import com.krrishkumar.focustimer.ui.timer.TimerViewModel
+import com.krrishkumar.focustimer.ui.stopwatch.StopwatchViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.delay
 
 private val tabLabels = listOf("Timer", "Stopwatch", "Clock", "History")
+
+/** Minutes of focus before an early break is offered; 0 means straight away. */
+private val CLAIM_BREAK_OPTIONS = listOf(0, 5, 10, 15, 20)
 
 @Composable
 fun FocusTimerApp(
@@ -83,6 +90,8 @@ fun FocusTimerApp(
     onTextSizeLevelChange: (Int) -> Unit,
     endBehavior: PomodoroEndBehavior,
     onEndBehaviorChange: (PomodoroEndBehavior) -> Unit,
+    claimBreakAfterMinutes: Int,
+    onClaimBreakAfterChange: (Int) -> Unit,
     keepIncompleteCycles: Boolean,
     onKeepIncompleteCyclesChange: (Boolean) -> Unit,
     logStopwatchOnPause: Boolean,
@@ -104,6 +113,15 @@ fun FocusTimerApp(
 
     BackHandler(enabled = inFocus) { isFocusMode = false }
 
+    // The same instances the Timer and Stopwatch screens use, so a tap in focus mode can
+    // drive whichever one is showing.
+    val timerViewModel: TimerViewModel = viewModel(factory = TimerViewModel.Factory(repository))
+    val stopwatchViewModel: StopwatchViewModel =
+        viewModel(factory = StopwatchViewModel.Factory(repository))
+    // The tap observer keeps its first callbacks, so they read this rather than the parameter.
+    val gestureEnabled by rememberUpdatedState(focusGestureEnabled)
+    val tabHasControls = selectedTab == 0 || selectedTab == 1
+
     LaunchedEffect(inFocus) {
         if (inFocus) {
             showExitHint = true
@@ -115,9 +133,14 @@ fun FocusTimerApp(
     }
 
     val view = LocalView.current
-    DisposableEffect(inFocus) {
-        view.keepScreenOn = inFocus
+    // A timer the screen dims out on isn't much use, so the display stays awake for as
+    // long as the app is open. Leaving the app hands control back to the system.
+    DisposableEffect(Unit) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
 
+    DisposableEffect(inFocus) {
         // Focus mode goes fully immersive: the status/navigation bars slide away so
         // notifications aren't sitting above the time. A swipe brings them back
         // temporarily without leaving focus mode.
@@ -132,7 +155,6 @@ fun FocusTimerApp(
         }
 
         onDispose {
-            view.keepScreenOn = false
             controller?.show(WindowInsetsCompat.Type.systemBars())
         }
     }
@@ -140,9 +162,18 @@ fun FocusTimerApp(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .observeDoubleTap(enabled = focusGestureEnabled && focusable) {
-                isFocusMode = !isFocusMode
-            }
+            .observeTaps(
+                enabled = focusable,
+                onSingleTap = {
+                    if (isFocusMode) {
+                        when (selectedTab) {
+                            0 -> timerViewModel.toggleRunning()
+                            1 -> stopwatchViewModel.toggleRunning()
+                        }
+                    }
+                },
+                onDoubleTap = { if (gestureEnabled) isFocusMode = !isFocusMode }
+            )
     ) {
         Scaffold(
             containerColor = colors.background,
@@ -200,6 +231,7 @@ fun FocusTimerApp(
                     textSizeLevel,
                     endBehavior,
                     keepIncompleteCycles,
+                    claimBreakAfterMinutes,
                     Modifier.padding(innerPadding),
                     focusMode = inFocus
                 )
@@ -223,7 +255,12 @@ fun FocusTimerApp(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp)
         ) {
             Text(
-                text = "Double-tap to exit focus mode",
+                text = when {
+                    tabHasControls && focusGestureEnabled -> "Tap to pause or resume · Double-tap to exit"
+                    tabHasControls -> "Tap to pause or resume · Back to exit"
+                    focusGestureEnabled -> "Double-tap to exit focus mode"
+                    else -> "Press back to exit focus mode"
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.textMuted
             )
@@ -242,6 +279,8 @@ fun FocusTimerApp(
             onTextSizeLevelChange = onTextSizeLevelChange,
             endBehavior = endBehavior,
             onEndBehaviorChange = onEndBehaviorChange,
+            claimBreakAfterMinutes = claimBreakAfterMinutes,
+            onClaimBreakAfterChange = onClaimBreakAfterChange,
             keepIncompleteCycles = keepIncompleteCycles,
             onKeepIncompleteCyclesChange = onKeepIncompleteCyclesChange,
             logStopwatchOnPause = logStopwatchOnPause,
@@ -270,6 +309,8 @@ private fun SettingsDialog(
     onTextSizeLevelChange: (Int) -> Unit,
     endBehavior: PomodoroEndBehavior,
     onEndBehaviorChange: (PomodoroEndBehavior) -> Unit,
+    claimBreakAfterMinutes: Int,
+    onClaimBreakAfterChange: (Int) -> Unit,
     keepIncompleteCycles: Boolean,
     onKeepIncompleteCyclesChange: (Boolean) -> Unit,
     logStopwatchOnPause: Boolean,
@@ -333,26 +374,52 @@ private fun SettingsDialog(
 
             Text("Pomodoro", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
             Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                SegmentedOption(
-                    "Overtime",
-                    selected = endBehavior == PomodoroEndBehavior.OVERTIME,
-                    onClick = { onEndBehaviorChange(PomodoroEndBehavior.OVERTIME) },
-                    modifier = Modifier.weight(1f)
-                )
-                SegmentedOption(
-                    "Auto break",
-                    selected = endBehavior == PomodoroEndBehavior.AUTO_BREAK,
-                    onClick = { onEndBehaviorChange(PomodoroEndBehavior.AUTO_BREAK) },
-                    modifier = Modifier.weight(1f)
-                )
+            ToggleRow(
+                label = "Start break automatically",
+                checked = endBehavior == PomodoroEndBehavior.AUTO_BREAK,
+                onCheckedChange = { on ->
+                    onEndBehaviorChange(
+                        if (on) PomodoroEndBehavior.AUTO_BREAK else PomodoroEndBehavior.OVERTIME
+                    )
+                },
+                colors = colors
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = if (endBehavior == PomodoroEndBehavior.AUTO_BREAK) {
+                    "When focus ends, the break timer starts on its own."
+                } else {
+                    "When focus ends, the timer keeps counting up until you claim your break, and the extra time counts as work."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textMuted
+            )
+            Spacer(Modifier.height(18.dp))
+            Text(
+                "Claim a break after",
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.textSecondary
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                CLAIM_BREAK_OPTIONS.forEach { minutes ->
+                    SegmentedOption(
+                        label = if (minutes == 0) "Any" else "${minutes}m",
+                        selected = minutes == claimBreakAfterMinutes,
+                        onClick = { onClaimBreakAfterChange(minutes) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                text = if (endBehavior == PomodoroEndBehavior.OVERTIME) {
-                    "When focus ends the timer keeps counting up, and the extra time still counts as work."
+                text = if (claimBreakAfterMinutes == 0) {
+                    "You can take your break at any point in a focus session."
                 } else {
-                    "When focus ends the break starts on its own."
+                    "You can take your break early once you've focused for $claimBreakAfterMinutes minutes."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textMuted
@@ -447,7 +514,7 @@ private fun SettingsDialog(
             if (showFocusHint) {
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "Double-tap anywhere to enter or exit focus mode. Only the time stays on screen.",
+                    text = "Double-tap anywhere to enter or exit focus mode. Only the time stays on screen, and a single tap pauses or resumes it.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.textMuted
                 )

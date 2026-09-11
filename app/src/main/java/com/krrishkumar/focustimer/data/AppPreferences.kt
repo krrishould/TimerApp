@@ -55,6 +55,14 @@ class AppPreferences(context: Context) {
         prefs.edit().putString(KEY_POMODORO_END, name).apply()
     }
 
+    /** Minutes of focus before an early break can be claimed; 0 means any time. */
+    fun getClaimBreakAfterMinutes(): Int =
+        prefs.getInt(KEY_CLAIM_BREAK_AFTER, DEFAULT_CLAIM_BREAK_AFTER).coerceAtLeast(0)
+
+    fun setClaimBreakAfterMinutes(minutes: Int) {
+        prefs.edit().putInt(KEY_CLAIM_BREAK_AFTER, minutes.coerceAtLeast(0)).apply()
+    }
+
     /** 0..4, where 2 is the default middle step. */
     fun getTextSizeLevel(): Int =
         prefs.getInt(KEY_TEXT_SIZE_LEVEL, DEFAULT_TEXT_SIZE_LEVEL).coerceIn(0, 4)
@@ -75,5 +83,7 @@ class AppPreferences(context: Context) {
         private const val DEFAULT_POMODORO_END = "OVERTIME"
         private const val KEY_KEEP_INCOMPLETE = "keep_incomplete_cycles"
         private const val KEY_STOPWATCH_ON_PAUSE = "log_stopwatch_on_pause"
+        private const val KEY_CLAIM_BREAK_AFTER = "claim_break_after_minutes"
+        private const val DEFAULT_CLAIM_BREAK_AFTER = 10
     }
 }

@@ -71,6 +71,7 @@ fun TimerScreen(
     textSizeLevel: Int,
     endBehavior: PomodoroEndBehavior,
     keepIncompleteCycles: Boolean,
+    claimBreakAfterMinutes: Int,
     modifier: Modifier = Modifier,
     focusMode: Boolean = false
 ) {
@@ -87,8 +88,13 @@ fun TimerScreen(
     viewModel.endBehavior = endBehavior
     viewModel.keepIncompleteCycles = keepIncompleteCycles
 
-    // Editing only makes sense for the plain timer while it's idle.
-    val canEdit = !state.pomodoroMode && !state.isRunning && !state.inOvertime && !focusMode
+    // Typing only makes sense for the plain timer while it's idle; dragging works in
+    // Pomodoro too, where it adjusts whichever period is showing.
+    val canDrag = !state.isRunning && !state.inOvertime && !focusMode
+    val canEdit = canDrag && !state.pomodoroMode
+    val canClaimEarly = state.pomodoroMode && state.phase == TimerPhase.WORK &&
+        !state.inOvertime && state.workedMillis > 0 &&
+        state.workedMillis >= claimBreakAfterMinutes * 60 * 1000L
     LaunchedEffect(canEdit) { if (!canEdit) editing = false }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
@@ -98,7 +104,10 @@ fun TimerScreen(
         } else {
             formatMillis(state.remainingMillis)
         }
-        val timeColor = if (state.inOvertime) colors.overtime else colors.textPrimary
+        // In focus mode a tap pauses, and with no buttons on screen the dimmed digits
+        // are the only sign that it worked.
+        val timeColor = (if (state.inOvertime) colors.overtime else colors.textPrimary)
+            .copy(alpha = if (focusMode && !state.isRunning) 0.4f else 1f)
         val scale = textSizeScale(textSizeLevel)
         val contentWidth = maxWidth - 56.dp // the Column's 28dp padding on each side
         // Bigger on tablets, where a phone-sized number looks lost.
@@ -165,26 +174,40 @@ fun TimerScreen(
                     text = timeText,
                     style = timeStyle,
                     color = timeColor,
-                    modifier = if (canEdit) {
-                        Modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { editing = true }
-                            .dragToAdjustMinutes(dragStepPx) { step ->
-                                viewModel.adjustTimerMinutes(step)
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    modifier = Modifier
+                        .then(
+                            if (canEdit) {
+                                Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { editing = true }
+                            } else {
+                                Modifier
                             }
-                    } else {
-                        Modifier
-                    }
+                        )
+                        .then(
+                            if (canDrag) {
+                                Modifier.dragToAdjustMinutes(dragStepPx) { step ->
+                                    viewModel.adjustCurrentMinutes(step)
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                            } else {
+                                Modifier
+                            }
+                        )
                 )
             }
 
-            if (canEdit && !editing) {
+            val hint = when {
+                editing -> null
+                canEdit -> "Tap to type, or drag up and down"
+                canDrag -> "Drag up and down to adjust"
+                else -> null
+            }
+            if (hint != null) {
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "Tap to type, or drag up and down",
+                    text = hint,
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.textMuted
                 )
@@ -208,6 +231,26 @@ fun TimerScreen(
                             text = "Claim break",
                             style = MaterialTheme.typography.labelLarge,
                             color = colors.onAccent
+                        )
+                    }
+                }
+
+                // Early break: quieter than the overtime button, since nothing is overdue.
+                AnimatedVisibility(visible = canClaimEarly) {
+                    Box(
+                        modifier = Modifier
+                            .padding(bottom = if (compact) 10.dp else 20.dp)
+                            .background(colors.surfaceRaised, RoundedCornerShape(50))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { viewModel.claimBreak() }
+                            .padding(horizontal = 24.dp, vertical = 11.dp)
+                    ) {
+                        Text(
+                            text = "Claim break",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = colors.textPrimary
                         )
                     }
                 }

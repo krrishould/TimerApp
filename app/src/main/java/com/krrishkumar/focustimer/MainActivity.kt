@@ -41,6 +41,9 @@ class MainActivity : ComponentActivity() {
             var logStopwatchOnPause by remember {
                 mutableStateOf(preferences.isLogStopwatchOnPause())
             }
+            var claimBreakAfter by remember {
+                mutableIntStateOf(preferences.getClaimBreakAfterMinutes())
+            }
             var focusGestureEnabled by remember { mutableStateOf(preferences.isFocusGestureEnabled()) }
 
             FocusTimerTheme(darkTheme = isDarkTheme) {
@@ -70,6 +73,11 @@ class MainActivity : ComponentActivity() {
                     onEndBehaviorChange = { behavior ->
                         endBehavior = behavior
                         preferences.setPomodoroEndBehavior(behavior.name)
+                    },
+                    claimBreakAfterMinutes = claimBreakAfter,
+                    onClaimBreakAfterChange = { minutes ->
+                        claimBreakAfter = minutes
+                        preferences.setClaimBreakAfterMinutes(minutes)
                     },
                     keepIncompleteCycles = keepIncompleteCycles,
                     onKeepIncompleteCyclesChange = { enabled ->

@@ -45,7 +45,15 @@ data class TimerUiState(
     /** True once a focus period has run out and the timer is counting upwards. */
     val inOvertime: Boolean = false,
     val overtimeMillis: Long = 0L
-)
+) {
+    /** Focus time put in so far this period, before any overtime. */
+    val workedMillis: Long
+        get() = if (pomodoroMode && phase == TimerPhase.WORK && !inOvertime) {
+            workMinutes * 60 * 1000L - remainingMillis
+        } else {
+            0L
+        }
+}
 
 class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
 
@@ -70,14 +78,23 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun start() {
-        if (_uiState.value.isRunning) return
-        if (_uiState.value.inOvertime) {
+        val state = _uiState.value
+        if (state.isRunning) return
+        if (state.inOvertime) {
             runOvertime()
             return
         }
-        if (_uiState.value.remainingMillis <= 0) return
-        phaseStartTimeMillis = System.currentTimeMillis()
+        if (state.remainingMillis <= 0) return
+        // Only a fresh period gets a new start time. Resuming after a pause keeps the
+        // original one, otherwise the logged session would claim it began mid-way.
+        if (state.remainingMillis == state.currentPhaseMinutes() * 60 * 1000L) {
+            phaseStartTimeMillis = System.currentTimeMillis()
+        }
         runCountdown()
+    }
+
+    fun toggleRunning() {
+        if (_uiState.value.isRunning) pause() else start()
     }
 
     private fun runCountdown() {
@@ -148,10 +165,20 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
         }
     }
 
-    /** Ends overtime, records the whole stretch as one session, and starts the break. */
+    /**
+     * Ends the focus period and starts the break — from overtime, or early once the
+     * user has put in enough focus. Whatever was worked is recorded as one session.
+     */
     fun claimBreak() {
+        val state = _uiState.value
+        if (!state.pomodoroMode || state.phase != TimerPhase.WORK) return
         tickJob?.cancel()
-        flushOvertime()
+        if (state.inOvertime) {
+            flushOvertime()
+        } else if (state.workedMillis >= 60_000L) {
+            // Floored at a minute like other partial sessions, which would read as "0m".
+            logSession(SessionType.POMODORO_WORK, state.workedMillis, state.activityName)
+        }
         _uiState.update {
             it.copy(
                 phase = TimerPhase.BREAK,
@@ -201,8 +228,13 @@ class TimerViewModel(private val repository: SessionRepository) : ViewModel() {
      * Nudges the countdown by whole minutes. Reads the current value itself so the drag
      * gesture never works from a stale snapshot of the state.
      */
-    fun adjustTimerMinutes(delta: Int) {
-        setTimerMinutes(_uiState.value.timerMinutes + delta)
+    fun adjustCurrentMinutes(delta: Int) {
+        val state = _uiState.value
+        when {
+            !state.pomodoroMode -> setTimerMinutes(state.timerMinutes + delta)
+            state.phase == TimerPhase.WORK -> setWorkMinutes(state.workMinutes + delta)
+            else -> setBreakMinutes(state.breakMinutes + delta)
+        }
     }
 
     /** Bounded only by what the four-digit editor can express — a little under a week. */

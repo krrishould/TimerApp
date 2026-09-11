@@ -70,6 +70,10 @@ class StopwatchViewModel(private val repository: SessionRepository) : ViewModel(
         if (logOnPause) recordRun(accumulatedMillis)
     }
 
+    fun toggleRunning() {
+        if (_uiState.value.isRunning) pause() else start()
+    }
+
     fun setActivityName(name: String) {
         _uiState.update { it.copy(activityName = name.trim().ifBlank { null }) }
     }
