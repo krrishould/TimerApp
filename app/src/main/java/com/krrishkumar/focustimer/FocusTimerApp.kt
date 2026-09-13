@@ -58,13 +58,21 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.krrishkumar.focustimer.ui.components.GearIcon
 import com.krrishkumar.focustimer.ui.components.observeTaps
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.collectAsState
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import android.os.Build
+import android.content.pm.PackageManager
+import android.Manifest
 import com.krrishkumar.focustimer.ui.components.TEXT_SIZE_STEPS
 import com.krrishkumar.focustimer.ui.clock.ClockScreen
 import com.krrishkumar.focustimer.ui.history.HistoryScreen
 import com.krrishkumar.focustimer.ui.stopwatch.StopwatchScreen
 import com.krrishkumar.focustimer.ui.theme.AppColors
 import com.krrishkumar.focustimer.ui.theme.LocalAppColors
-import com.krrishkumar.focustimer.ui.timer.PomodoroEndBehavior
+import com.krrishkumar.focustimer.engine.PomodoroEndBehavior
 import com.krrishkumar.focustimer.ui.timer.TimerScreen
 import com.krrishkumar.focustimer.ui.timer.TimerViewModel
 import com.krrishkumar.focustimer.ui.stopwatch.StopwatchViewModel
@@ -97,7 +105,9 @@ fun FocusTimerApp(
     logStopwatchOnPause: Boolean,
     onLogStopwatchOnPauseChange: (Boolean) -> Unit,
     focusGestureEnabled: Boolean,
-    onFocusGestureChange: (Boolean) -> Unit
+    onFocusGestureChange: (Boolean) -> Unit,
+    requestedTab: Int? = null,
+    onRequestedTabHandled: () -> Unit = {}
 ) {
     // Saveable, not just remembered: a rotation recreates the activity, and plain
     // remember would drop the user back onto the Timer tab mid-task.
@@ -115,12 +125,46 @@ fun FocusTimerApp(
 
     // The same instances the Timer and Stopwatch screens use, so a tap in focus mode can
     // drive whichever one is showing.
-    val timerViewModel: TimerViewModel = viewModel(factory = TimerViewModel.Factory(repository))
-    val stopwatchViewModel: StopwatchViewModel =
-        viewModel(factory = StopwatchViewModel.Factory(repository))
+    val timerViewModel: TimerViewModel = viewModel(factory = TimerViewModel.Factory)
+    val stopwatchViewModel: StopwatchViewModel = viewModel(factory = StopwatchViewModel.Factory)
     // The tap observer keeps its first callbacks, so they read this rather than the parameter.
     val gestureEnabled by rememberUpdatedState(focusGestureEnabled)
     val tabHasControls = selectedTab == 0 || selectedTab == 1
+
+    // Opened from a timer or stopwatch notification: show the screen it came from.
+    LaunchedEffect(requestedTab) {
+        if (requestedTab != null) {
+            selectedTab = requestedTab
+            onRequestedTabHandled()
+        }
+    }
+
+    // Asked the first time something starts, when it's clear why a notification helps.
+    // Without it the timer still ends and chimes on time; it just can't show controls.
+    val context = LocalContext.current
+    val app = context.applicationContext as AlltimeApp
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            app.timerEngine.resync()
+            app.stopwatchEngine.resync()
+        }
+    }
+    val timerModel by app.timerEngine.state.collectAsState()
+    val stopwatchModel by app.stopwatchEngine.state.collectAsState()
+    val somethingRunning = timerModel.isRunning || stopwatchModel.isRunning
+    LaunchedEffect(somethingRunning) {
+        val needsAsking = somethingRunning &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED &&
+            !app.preferences.wasNotificationPermissionAsked()
+        if (needsAsking) {
+            app.preferences.setNotificationPermissionAsked()
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     LaunchedEffect(inFocus) {
         if (inFocus) {
@@ -227,19 +271,14 @@ fun FocusTimerApp(
         ) { innerPadding ->
             when (selectedTab) {
                 0 -> TimerScreen(
-                    repository,
-                    textSizeLevel,
-                    endBehavior,
-                    keepIncompleteCycles,
-                    claimBreakAfterMinutes,
-                    Modifier.padding(innerPadding),
+                    textSizeLevel = textSizeLevel,
+                    claimBreakAfterMinutes = claimBreakAfterMinutes,
+                    modifier = Modifier.padding(innerPadding),
                     focusMode = inFocus
                 )
                 1 -> StopwatchScreen(
-                    repository,
-                    textSizeLevel,
-                    logStopwatchOnPause,
-                    Modifier.padding(innerPadding),
+                    textSizeLevel = textSizeLevel,
+                    modifier = Modifier.padding(innerPadding),
                     focusMode = inFocus
                 )
                 2 -> ClockScreen(is24Hour, showSeconds, textSizeLevel, Modifier.padding(innerPadding), focusMode = inFocus)

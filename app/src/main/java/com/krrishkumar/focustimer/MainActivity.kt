@@ -1,5 +1,6 @@
 package com.krrishkumar.focustimer
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,22 +11,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.krrishkumar.focustimer.data.AppPreferences
-import com.krrishkumar.focustimer.data.SessionRepository
+import com.krrishkumar.focustimer.engine.PomodoroEndBehavior
 import com.krrishkumar.focustimer.ui.theme.FocusTimerTheme
-import com.krrishkumar.focustimer.ui.timer.PomodoroEndBehavior
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var preferences: AppPreferences
+    private val app: AlltimeApp get() = application as AlltimeApp
+
+    /** A tab to jump to, set when the app is opened from a timer or stopwatch notification. */
+    private val requestedTab = mutableStateOf<Int?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        preferences = AppPreferences(applicationContext)
+        preferences = app.preferences
         if (!preferences.isDarkMode()) {
             setTheme(R.style.Theme_FocusTimer_Light)
         }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val repository = SessionRepository(applicationContext)
+        // Only on a fresh launch: after a rotation, the tab the user was on should win.
+        if (savedInstanceState == null) takeRequestedTab(intent)
 
         setContent {
             var isDarkTheme by remember { mutableStateOf(preferences.isDarkMode()) }
@@ -48,7 +53,7 @@ class MainActivity : ComponentActivity() {
 
             FocusTimerTheme(darkTheme = isDarkTheme) {
                 FocusTimerApp(
-                    repository = repository,
+                    repository = app.repository,
                     isDarkTheme = isDarkTheme,
                     onThemeChange = { enabled ->
                         isDarkTheme = enabled
@@ -93,9 +98,39 @@ class MainActivity : ComponentActivity() {
                     onFocusGestureChange = { enabled ->
                         focusGestureEnabled = enabled
                         preferences.setFocusGestureEnabled(enabled)
-                    }
+                    },
+                    requestedTab = requestedTab.value,
+                    onRequestedTabHandled = { requestedTab.value = null }
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        takeRequestedTab(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        app.isInForeground = true
+        // Settle anything that finished while the app was away before the first frame.
+        app.timerEngine.catchUp()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        app.isInForeground = false
+    }
+
+    private fun takeRequestedTab(intent: Intent?) {
+        if (intent?.hasExtra(EXTRA_TAB) != true) return
+        requestedTab.value = intent.getIntExtra(EXTRA_TAB, 0)
+        // Consumed, so recreating the activity doesn't jump back to it.
+        intent.removeExtra(EXTRA_TAB)
+    }
+
+    companion object {
+        const val EXTRA_TAB = "tab"
     }
 }

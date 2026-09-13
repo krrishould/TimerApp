@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.krrishkumar.focustimer.data.SessionRepository
 import com.krrishkumar.focustimer.ui.components.AnimatedTimeText
 import com.krrishkumar.focustimer.ui.components.fittedDigitSize
 import com.krrishkumar.focustimer.ui.components.focusDigitSize
@@ -43,18 +42,14 @@ import com.krrishkumar.focustimer.ui.theme.LocalAppColors
 
 @Composable
 fun StopwatchScreen(
-    repository: SessionRepository,
     textSizeLevel: Int,
-    logOnPause: Boolean,
     modifier: Modifier = Modifier,
     focusMode: Boolean = false
 ) {
-    val viewModel: StopwatchViewModel = viewModel(factory = StopwatchViewModel.Factory(repository))
+    val viewModel: StopwatchViewModel = viewModel(factory = StopwatchViewModel.Factory)
     val state by viewModel.uiState.collectAsState()
     val colors = LocalAppColors.current
     var naming by remember { mutableStateOf(false) }
-
-    viewModel.logOnPause = logOnPause
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val compact = maxHeight < 520.dp

@@ -51,7 +51,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.krrishkumar.focustimer.data.SessionRepository
+import com.krrishkumar.focustimer.engine.TimerPhase
 import com.krrishkumar.focustimer.ui.components.AnimatedTimeText
 import com.krrishkumar.focustimer.ui.components.fittedDigitSize
 import com.krrishkumar.focustimer.ui.components.focusDigitSize
@@ -67,15 +67,12 @@ import com.krrishkumar.focustimer.ui.theme.LocalAppColors
 
 @Composable
 fun TimerScreen(
-    repository: SessionRepository,
     textSizeLevel: Int,
-    endBehavior: PomodoroEndBehavior,
-    keepIncompleteCycles: Boolean,
     claimBreakAfterMinutes: Int,
     modifier: Modifier = Modifier,
     focusMode: Boolean = false
 ) {
-    val viewModel: TimerViewModel = viewModel(factory = TimerViewModel.Factory(repository))
+    val viewModel: TimerViewModel = viewModel(factory = TimerViewModel.Factory)
     val state by viewModel.uiState.collectAsState()
     val colors = LocalAppColors.current
     var editing by remember { mutableStateOf(false) }
@@ -84,9 +81,6 @@ fun TimerScreen(
     // How far the finger travels per minute. Loose enough to be controllable, tight
     // enough that a long timer doesn't need a marathon drag.
     val dragStepPx = with(LocalDensity.current) { 14.dp.toPx() }
-
-    viewModel.endBehavior = endBehavior
-    viewModel.keepIncompleteCycles = keepIncompleteCycles
 
     // Typing only makes sense for the plain timer while it's idle; dragging works in
     // Pomodoro too, where it adjusts whichever period is showing.

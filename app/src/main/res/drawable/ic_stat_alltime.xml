@@ -1,0 +1,41 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="56"
+    android:viewportHeight="56">
+
+    <!--
+      The launcher hourglass, recoloured white and cropped tight for the status bar,
+      where only the shape's alpha is drawn.
+    -->
+    <group
+        android:translateX="-26"
+        android:translateY="-26">
+        <path
+            android:pathData="M38,30 L70,30 L54,54 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="7"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M46,42 L62,42 L54,54 Z"
+            android:fillColor="#FFFFFFFF" />
+        <path
+            android:pathData="M54,55 L54,60"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="5"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M54,61 L54,70"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="2"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M38,78 L70,78 L54,54 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="7"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M42.3,71.5 L65.7,71.5 L70,78 L38,78 Z"
+            android:fillColor="#FFFFFFFF" />
+    </group>
+</vector>

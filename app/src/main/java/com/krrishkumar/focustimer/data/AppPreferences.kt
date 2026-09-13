@@ -63,6 +63,13 @@ class AppPreferences(context: Context) {
         prefs.edit().putInt(KEY_CLAIM_BREAK_AFTER, minutes.coerceAtLeast(0)).apply()
     }
 
+    /** Whether the notification permission prompt has been shown, so it's only asked once. */
+    fun wasNotificationPermissionAsked(): Boolean = prefs.getBoolean(KEY_NOTIFICATION_ASKED, false)
+
+    fun setNotificationPermissionAsked() {
+        prefs.edit().putBoolean(KEY_NOTIFICATION_ASKED, true).apply()
+    }
+
     /** 0..4, where 2 is the default middle step. */
     fun getTextSizeLevel(): Int =
         prefs.getInt(KEY_TEXT_SIZE_LEVEL, DEFAULT_TEXT_SIZE_LEVEL).coerceIn(0, 4)
@@ -85,5 +92,6 @@ class AppPreferences(context: Context) {
         private const val KEY_STOPWATCH_ON_PAUSE = "log_stopwatch_on_pause"
         private const val KEY_CLAIM_BREAK_AFTER = "claim_break_after_minutes"
         private const val DEFAULT_CLAIM_BREAK_AFTER = 10
+        private const val KEY_NOTIFICATION_ASKED = "notification_permission_asked"
     }
 }
