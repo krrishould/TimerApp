@@ -67,10 +67,12 @@ fun HistoryScreen(repository: SessionRepository, modifier: Modifier = Modifier) 
             item {
                 StatsView(
                     stats = state.stats,
-                    range = state.statsRange,
+                    period = state.statsPeriod,
                     is24Hour = is24Hour,
                     colors = colors,
-                    onRangeChange = viewModel::setStatsRange
+                    onPeriodChange = viewModel::setStatsPeriod,
+                    onPrevious = viewModel::previousStatsPeriod,
+                    onNext = viewModel::nextStatsPeriod
                 )
             }
         } else {
@@ -208,7 +210,7 @@ private fun WeekHeader(
 }
 
 @Composable
-private fun ArrowButton(glyph: String, enabled: Boolean, colors: AppColors, onClick: () -> Unit) {
+internal fun ArrowButton(glyph: String, enabled: Boolean, colors: AppColors, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clickable(

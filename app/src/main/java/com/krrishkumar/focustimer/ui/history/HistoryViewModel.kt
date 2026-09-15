@@ -24,10 +24,12 @@ import kotlin.math.roundToInt
 
 enum class HistoryTab { DAYS, STATS }
 
-enum class StatsRange(val label: String, val days: Int?) {
-    WEEK("7 days", 7),
-    MONTH("30 days", 30),
-    ALL("All time", null)
+/** Calendar periods, so a week is Monday to Sunday and a month is the 1st to its last day. */
+enum class StatsPeriod(val label: String) {
+    DAY("Day"),
+    WEEK("Week"),
+    MONTH("Month"),
+    ALL("All time")
 }
 
 data class DayTotal(
@@ -46,13 +48,21 @@ data class SessionDetail(val session: WorkSession, val segments: List<Segment>)
 
 data class CategoryStat(val name: String, val color: Int?, val millis: Long, val fraction: Float)
 
+/** Focus time on one day of a week or month. */
+data class DayAmount(val dayStart: Long, val millis: Long, val isToday: Boolean, val isFuture: Boolean)
+
 data class Stats(
-    val range: StatsRange,
+    val period: StatsPeriod,
+    /** "Today", "Last week", "September 2026" and so on. */
+    val periodLabel: String,
+    val canGoForward: Boolean,
+    /** How the period before is named in the comparison, e.g. "yesterday"; null for all time. */
+    val previousLabel: String?,
     val totalMillis: Long,
-    /** The same length of time just before the range; null for all time. */
     val previousTotalMillis: Long?,
     val sessionCount: Int,
-    val daysInRange: Int,
+    /** Days of the period so far, which is what the daily average divides by. */
+    val daysCounted: Int,
     val activeDays: Int,
     val dailyAverageMillis: Long,
     val averageSessionMillis: Long,
@@ -63,9 +73,14 @@ data class Stats(
     val bestStreak: Int,
     val bestDayStart: Long?,
     val bestDayMillis: Long,
+    /** When the first session in the period started, and the last one finished. */
+    val firstStart: Long?,
+    val lastEnd: Long?,
     val byCategory: List<CategoryStat>,
     /** Running time that fell in each hour of the day, 0 to 23. */
-    val byHour: List<Long>
+    val byHour: List<Long>,
+    /** Every day of a week or month in order; empty for a single day or all time. */
+    val byDay: List<DayAmount>
 )
 
 data class HistoryUiState(
@@ -78,7 +93,7 @@ data class HistoryUiState(
     val daySessions: List<WorkSession> = emptyList(),
     /** Every running stretch on the selected day, breaks included, for the timeline. */
     val dayTimeline: List<TimelineSegment> = emptyList(),
-    val statsRange: StatsRange = StatsRange.WEEK,
+    val statsPeriod: StatsPeriod = StatsPeriod.DAY,
     val stats: Stats? = null,
     val detail: SessionDetail? = null
 )
@@ -88,9 +103,13 @@ class HistoryViewModel(private val repository: SessionRepository) : ViewModel() 
     private val _uiState = MutableStateFlow(HistoryUiState())
     val uiState: StateFlow<HistoryUiState> = _uiState
 
-    /** 0 is this week, -1 last week, and so on. */
+    /** 0 is this week on the Days tab, -1 last week, and so on. */
     private var weekOffset = 0
     private var selectedDayStart: Long? = null
+
+    /** 0 is the current day, week or month on the Stats tab, -1 the one before. */
+    private var statsOffset = 0
+
     private var daysJob: Job? = null
     private var statsJob: Job? = null
 
@@ -123,8 +142,21 @@ class HistoryViewModel(private val repository: SessionRepository) : ViewModel() 
         loadDays()
     }
 
-    fun setStatsRange(range: StatsRange) {
-        _uiState.update { it.copy(statsRange = range) }
+    fun setStatsPeriod(period: StatsPeriod) {
+        statsOffset = 0
+        _uiState.update { it.copy(statsPeriod = period, stats = null) }
+        loadStats()
+    }
+
+    fun previousStatsPeriod() {
+        if (_uiState.value.statsPeriod == StatsPeriod.ALL) return
+        statsOffset -= 1
+        loadStats()
+    }
+
+    fun nextStatsPeriod() {
+        if (statsOffset >= 0) return
+        statsOffset += 1
         loadStats()
     }
 
@@ -194,7 +226,7 @@ class HistoryViewModel(private val repository: SessionRepository) : ViewModel() 
 
             _uiState.update {
                 it.copy(
-                    weekLabel = weekLabel(bounds.first(), bounds[6]),
+                    weekLabel = weekLabel(weekOffset, bounds.first(), bounds[6]),
                     week = week,
                     canGoForward = weekOffset < 0,
                     selectedDay = selected,
@@ -208,27 +240,40 @@ class HistoryViewModel(private val repository: SessionRepository) : ViewModel() 
     private fun loadStats() {
         statsJob?.cancel()
         statsJob = viewModelScope.launch {
-            val range = _uiState.value.statsRange
+            val period = _uiState.value.statsPeriod
+            val offset = statsOffset
             val now = System.currentTimeMillis()
             val today = startOfDay(now)
             val all = repository.getSessionsSince(0L).filter { it.type != SessionType.POMODORO_BREAK }
-
             val firstDay = all.minOfOrNull { startOfDay(it.startTimeMillis) } ?: today
-            val rangeStart = range.days?.let { addDays(today, -(it - 1)) } ?: firstDay
-            val daysInRange = range.days ?: (daysBetween(firstDay, today) + 1)
-            val inRange = all.filter { it.startTimeMillis >= rangeStart }
-            val total = inRange.sumOf { it.durationMillis }
 
-            val previousTotal = range.days?.let { days ->
-                val previousStart = addDays(rangeStart, -days)
-                all.filter { it.startTimeMillis in previousStart until rangeStart }.sumOf { it.durationMillis }
+            val (start, end) = periodBounds(period, offset, today, firstDay)
+            val previous = if (period == StatsPeriod.ALL) null else periodBounds(period, offset - 1, today, firstDay)
+
+            val inPeriod = all.filter { it.startTimeMillis in start until end }
+            val total = inPeriod.sumOf { it.durationMillis }
+            val previousTotal = previous?.let { (from, until) ->
+                all.filter { it.startTimeMillis in from until until }.sumOf { it.durationMillis }
             }
 
-            val perDay = inRange.groupBy { startOfDay(it.startTimeMillis) }
+            // The current week or month only counts the days that have happened.
+            val lastCountedDay = min(addDays(end, -1), today)
+            val daysCounted = if (start > today) 0 else daysBetween(start, lastCountedDay) + 1
+
+            val perDay = inPeriod.groupBy { startOfDay(it.startTimeMillis) }
                 .mapValues { (_, day) -> day.sumOf { it.durationMillis } }
             val bestDay = perDay.maxByOrNull { it.value }
 
-            val byCategory = inRange.groupBy { it.categoryId }
+            val byDay = if (period == StatsPeriod.WEEK || period == StatsPeriod.MONTH) {
+                generateSequence(start) { addDays(it, 1) }
+                    .takeWhile { it < end }
+                    .map { day -> DayAmount(day, perDay[day] ?: 0L, day == today, day > today) }
+                    .toList()
+            } else {
+                emptyList()
+            }
+
+            val byCategory = inPeriod.groupBy { it.categoryId }
                 .map { (_, group) ->
                     val first = group.first()
                     val millis = group.sumOf { it.durationMillis }
@@ -242,36 +287,75 @@ class HistoryViewModel(private val repository: SessionRepository) : ViewModel() 
                 .sortedByDescending { it.millis }
 
             val byHour = LongArray(24)
-            repository.getTimeline(rangeStart, now)
+            repository.getTimeline(start, min(end, now))
                 .filter { it.type != SessionType.POMODORO_BREAK }
-                .forEach { spreadOverHours(max(it.start, rangeStart), it.end, byHour) }
+                .forEach { spreadOverHours(max(it.start, start), min(it.end, end), byHour) }
 
-            val activeDays = all.map { startOfDay(it.startTimeMillis) }.toSortedSet()
+            val activeDaysEver = all.map { startOfDay(it.startTimeMillis) }.toSortedSet()
 
-            _uiState.update {
-                it.copy(
-                    stats = Stats(
-                        range = range,
-                        totalMillis = total,
-                        previousTotalMillis = previousTotal,
-                        sessionCount = inRange.size,
-                        daysInRange = daysInRange,
-                        activeDays = perDay.size,
-                        dailyAverageMillis = if (daysInRange > 0) total / daysInRange else 0L,
-                        averageSessionMillis = if (inRange.isNotEmpty()) total / inRange.size else 0L,
-                        longestSessionMillis = inRange.maxOfOrNull { s -> s.durationMillis } ?: 0L,
-                        pausedMillis = inRange.sumOf { s -> s.pausedMillis },
-                        focusSessions = inRange.count { s -> s.type == SessionType.POMODORO_WORK },
-                        currentStreak = currentStreak(activeDays, today),
-                        bestStreak = bestStreak(activeDays),
-                        bestDayStart = bestDay?.key,
-                        bestDayMillis = bestDay?.value ?: 0L,
-                        byCategory = byCategory,
-                        byHour = byHour.toList()
-                    )
-                )
-            }
+            val stats = Stats(
+                period = period,
+                periodLabel = periodLabel(period, offset, start, end),
+                canGoForward = period != StatsPeriod.ALL && offset < 0,
+                previousLabel = previousLabel(period, offset),
+                totalMillis = total,
+                previousTotalMillis = previousTotal,
+                sessionCount = inPeriod.size,
+                daysCounted = daysCounted,
+                activeDays = perDay.size,
+                dailyAverageMillis = if (daysCounted > 0) total / daysCounted else 0L,
+                averageSessionMillis = if (inPeriod.isNotEmpty()) total / inPeriod.size else 0L,
+                longestSessionMillis = inPeriod.maxOfOrNull { it.durationMillis } ?: 0L,
+                pausedMillis = inPeriod.sumOf { it.pausedMillis },
+                focusSessions = inPeriod.count { it.type == SessionType.POMODORO_WORK },
+                currentStreak = currentStreak(activeDaysEver, today),
+                bestStreak = bestStreak(activeDaysEver),
+                bestDayStart = bestDay?.key,
+                bestDayMillis = bestDay?.value ?: 0L,
+                firstStart = inPeriod.minOfOrNull { it.startTimeMillis },
+                lastEnd = inPeriod.maxOfOrNull { it.endTimeMillis },
+                byCategory = byCategory,
+                byHour = byHour.toList(),
+                byDay = byDay
+            )
+            _uiState.update { it.copy(stats = stats) }
         }
+    }
+
+    /** Start (inclusive) and end (exclusive) of the period [offset] steps from the current one. */
+    private fun periodBounds(period: StatsPeriod, offset: Int, today: Long, firstDay: Long): Pair<Long, Long> =
+        when (period) {
+            StatsPeriod.DAY -> addDays(today, offset).let { it to addDays(it, 1) }
+            StatsPeriod.WEEK -> addDays(startOfWeek(today), offset * 7).let { it to addDays(it, 7) }
+            StatsPeriod.MONTH -> {
+                val calendar = Calendar.getInstance().apply {
+                    timeInMillis = today
+                    set(Calendar.DAY_OF_MONTH, 1)
+                    add(Calendar.MONTH, offset)
+                }
+                val monthStart = calendar.timeInMillis
+                calendar.add(Calendar.MONTH, 1)
+                monthStart to calendar.timeInMillis
+            }
+            StatsPeriod.ALL -> firstDay to addDays(today, 1)
+        }
+
+    private fun periodLabel(period: StatsPeriod, offset: Int, start: Long, end: Long): String = when (period) {
+        StatsPeriod.DAY -> when (offset) {
+            0 -> "Today"
+            -1 -> "Yesterday"
+            else -> SimpleDateFormat("EEEE, d MMM", Locale.getDefault()).format(Date(start))
+        }
+        StatsPeriod.WEEK -> weekLabel(offset, start, addDays(end, -1))
+        StatsPeriod.MONTH -> SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date(start))
+        StatsPeriod.ALL -> "All time"
+    }
+
+    private fun previousLabel(period: StatsPeriod, offset: Int): String? = when (period) {
+        StatsPeriod.DAY -> if (offset == 0) "yesterday" else "the day before"
+        StatsPeriod.WEEK -> if (offset == 0) "last week" else "the week before"
+        StatsPeriod.MONTH -> if (offset == 0) "last month" else "the month before"
+        StatsPeriod.ALL -> null
     }
 
     /** Days in a row with any work, counting back from today, or from yesterday if today is still empty. */
@@ -314,7 +398,7 @@ class HistoryViewModel(private val repository: SessionRepository) : ViewModel() 
         }
     }
 
-    private fun weekLabel(firstDay: Long, lastDay: Long): String = when (weekOffset) {
+    private fun weekLabel(offset: Int, firstDay: Long, lastDay: Long): String = when (offset) {
         0 -> "This week"
         -1 -> "Last week"
         else -> {
@@ -337,7 +421,7 @@ class HistoryViewModel(private val repository: SessionRepository) : ViewModel() 
         add(Calendar.DAY_OF_YEAR, days)
     }.timeInMillis
 
-    /** Monday of the week containing [dayStart], so the chart always reads Mon-Sun. */
+    /** Monday of the week containing [dayStart], so weeks always read Mon-Sun. */
     private fun startOfWeek(dayStart: Long): Long {
         val calendar = Calendar.getInstance().apply { timeInMillis = dayStart }
         val daysSinceMonday = (calendar.get(Calendar.DAY_OF_WEEK) - Calendar.MONDAY + 7) % 7
