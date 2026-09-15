@@ -93,14 +93,16 @@ fun CategoryChip(category: Category?, onClick: () -> Unit, modifier: Modifier = 
 
 /**
  * Pick, add or delete a category. Reads the shared list itself, so every screen that opens
- * it sees the same categories.
+ * it sees the same categories. With [manage] set there is nothing to pick: it only adds and
+ * deletes, for opening from the menu.
  */
 @Composable
 fun CategoryPicker(
     selectedId: Long?,
     onSelect: (Category?) -> Unit,
     onDismiss: () -> Unit,
-    title: String = "Category"
+    title: String = "Category",
+    manage: Boolean = false
 ) {
     val colors = LocalAppColors.current
     val store = (LocalContext.current.applicationContext as AlltimeApp).categoryStore
@@ -110,7 +112,7 @@ fun CategoryPicker(
 
     fun add() {
         if (newName.isBlank()) return
-        store.create(newName) { created -> onSelect(created) }
+        store.create(newName) { created -> if (!manage) onSelect(created) }
         newName = ""
     }
 
@@ -137,13 +139,22 @@ fun CategoryPicker(
                     .padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                PickerRow(
-                    name = "No category",
-                    dotColor = null,
-                    selected = selectedId == null,
-                    colors = colors,
-                    onClick = { onSelect(null) }
-                )
+                if (!manage) {
+                    PickerRow(
+                        name = "No category",
+                        dotColor = null,
+                        selected = selectedId == null,
+                        colors = colors,
+                        onClick = { onSelect(null) }
+                    )
+                } else if (categories.isEmpty()) {
+                    Text(
+                        "No categories yet. Add one below.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textMuted,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                    )
+                }
                 categories.forEach { category ->
                     if (confirmingDelete == category.id) {
                         ConfirmDeleteRow(
@@ -159,9 +170,9 @@ fun CategoryPicker(
                         PickerRow(
                             name = category.name,
                             dotColor = category.color,
-                            selected = category.id == selectedId,
+                            selected = !manage && category.id == selectedId,
                             colors = colors,
-                            onClick = { onSelect(category) },
+                            onClick = { if (!manage) onSelect(category) },
                             onDeleteRequest = { confirmingDelete = category.id }
                         )
                     }

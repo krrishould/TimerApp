@@ -130,3 +130,21 @@ fun ResetIcon(color: Color, size: Dp = 20.dp) {
         drawPath(head, color)
     }
 }
+
+/** Three short bars: opens the app menu. */
+@Composable
+fun MenuIcon(color: Color, size: Dp = 20.dp) {
+    Canvas(Modifier.size(size)) {
+        val w = this.size.width
+        val stroke = w * 0.11f
+        listOf(0.26f, 0.5f, 0.74f).forEach { y ->
+            drawLine(
+                color = color,
+                start = Offset(w * 0.14f, w * y),
+                end = Offset(w * 0.86f, w * y),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}
