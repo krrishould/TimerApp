@@ -7,8 +7,10 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
@@ -86,14 +88,23 @@ class SyncManager(
         if (clientIdRes == 0) {
             return Result.failure(IllegalStateException("Google sign-in isn't enabled for this Firebase project."))
         }
-        val option = GetGoogleIdOption.Builder()
-            .setServerClientId(context.getString(clientIdRes))
-            .setFilterByAuthorizedAccounts(false)
-            .build()
-        val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
+        val serverClientId = context.getString(clientIdRes)
+        val manager = CredentialManager.create(activity)
 
         return try {
-            val credential = CredentialManager.create(activity).getCredential(activity, request).credential
+            val credential = try {
+                val quickSheet = GetGoogleIdOption.Builder()
+                    .setServerClientId(serverClientId)
+                    .setFilterByAuthorizedAccounts(false)
+                    .build()
+                manager.getCredential(activity, GetCredentialRequest.Builder().addCredentialOption(quickSheet).build()).credential
+            } catch (e: NoCredentialException) {
+                // The quick account sheet comes back empty on some devices even with an
+                // account present. The full "Sign in with Google" flow always shows the
+                // account picker, so try that before giving up.
+                val fullFlow = GetSignInWithGoogleOption.Builder(serverClientId).build()
+                manager.getCredential(activity, GetCredentialRequest.Builder().addCredentialOption(fullFlow).build()).credential
+            }
             if (credential !is CustomCredential ||
                 credential.type != GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
             ) {
@@ -105,7 +116,16 @@ class SyncManager(
         } catch (e: GetCredentialCancellationException) {
             Result.failure(IllegalStateException("Sign-in cancelled."))
         } catch (e: NoCredentialException) {
-            Result.failure(IllegalStateException("No Google account on this device. Add one in system settings."))
+            // With an account on the device this almost always means Google doesn't recognise
+            // this app: its SHA-1 fingerprint isn't registered in the Firebase project.
+            Result.failure(
+                IllegalStateException(
+                    "Google didn't offer an account for this app. Check a Google account is on this device " +
+                        "and the app's SHA-1 fingerprint is added in Firebase."
+                )
+            )
+        } catch (e: GetCredentialException) {
+            Result.failure(IllegalStateException("Couldn't sign in (${e.type}): ${e.errorMessage ?: "no details"}"))
         } catch (e: Exception) {
             Result.failure(IllegalStateException(e.localizedMessage ?: "Couldn't sign in."))
         }
