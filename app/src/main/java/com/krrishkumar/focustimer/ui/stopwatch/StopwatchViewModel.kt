@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.krrishkumar.focustimer.AlltimeApp
+import com.krrishkumar.focustimer.data.Category
 import com.krrishkumar.focustimer.engine.StopwatchEngine
 import com.krrishkumar.focustimer.engine.StopwatchModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,8 +21,8 @@ import kotlinx.coroutines.flow.stateIn
 data class StopwatchUiState(
     val elapsedMillis: Long = 0L,
     val isRunning: Boolean = false,
-    /** Name applied to logged sessions; stays set until the user changes it. */
-    val activityName: String? = null
+    /** Category applied to logged sessions; stays set until the user changes it. */
+    val category: Category? = null
 )
 
 /** Ticks the [StopwatchEngine]'s saved start moment into a display, only while running. */
@@ -48,12 +49,12 @@ class StopwatchViewModel(private val engine: StopwatchEngine) : ViewModel() {
     fun toggleRunning() = engine.toggleRunning()
     fun reset() = engine.reset()
     fun finishAndLog() = engine.finishAndLog()
-    fun setActivityName(name: String) = engine.setActivityName(name)
+    fun setCategory(category: Category?) = engine.setCategory(category)
 
     private fun render(model: StopwatchModel) = StopwatchUiState(
         elapsedMillis = model.elapsedAt(System.currentTimeMillis()),
         isRunning = model.isRunning,
-        activityName = model.activityName
+        category = model.category
     )
 
     companion object {

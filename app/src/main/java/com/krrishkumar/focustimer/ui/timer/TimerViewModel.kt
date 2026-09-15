@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.krrishkumar.focustimer.AlltimeApp
+import com.krrishkumar.focustimer.data.Category
 import com.krrishkumar.focustimer.engine.TimerEngine
 import com.krrishkumar.focustimer.engine.TimerModel
 import com.krrishkumar.focustimer.engine.TimerPhase
@@ -27,8 +28,8 @@ data class TimerUiState(
     val breakMinutes: Int = 5,
     val remainingMillis: Long = 25 * 60 * 1000L,
     val isRunning: Boolean = false,
-    /** Name applied to logged sessions; stays set until the user changes it. */
-    val activityName: String? = null,
+    /** Category applied to logged sessions; stays set until the user changes it. */
+    val category: Category? = null,
     /** True once a focus period has run out and the timer is counting upwards. */
     val inOvertime: Boolean = false,
     val overtimeMillis: Long = 0L
@@ -72,7 +73,7 @@ class TimerViewModel(private val engine: TimerEngine) : ViewModel() {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), render(engine.state.value))
 
-    fun setActivityName(name: String) = engine.setActivityName(name)
+    fun setCategory(category: Category?) = engine.setCategory(category)
     fun start() = engine.start()
     fun pause() = engine.pause()
     fun toggleRunning() = engine.toggleRunning()
@@ -94,7 +95,7 @@ class TimerViewModel(private val engine: TimerEngine) : ViewModel() {
             breakMinutes = model.breakMinutes,
             remainingMillis = model.remainingAt(now),
             isRunning = model.isRunning,
-            activityName = model.activityName,
+            category = model.category,
             inOvertime = model.inOvertime,
             overtimeMillis = model.overtimeAt(now)
         )

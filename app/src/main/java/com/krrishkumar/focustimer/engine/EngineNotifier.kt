@@ -57,11 +57,11 @@ class EngineNotifier(private val context: Context) {
             s.phase == TimerPhase.WORK -> "Focus"
             else -> "Break"
         }
-        val builder = ongoing(TAB_TIMER).setContentTitle(s.activityName ?: phaseLabel)
+        val builder = ongoing(TAB_TIMER).setContentTitle(s.category?.name ?: phaseLabel)
 
         when {
             s.endsAt != null -> builder
-                .setContentText(if (s.activityName != null) phaseLabel else "Running")
+                .setContentText(if (s.category != null) phaseLabel else "Running")
                 .setUsesChronometer(true)
                 .setChronometerCountDown(true)
                 .setWhen(s.endsAt)
@@ -93,21 +93,22 @@ class EngineNotifier(private val context: Context) {
     }
 
     fun showStopwatch(s: StopwatchModel) {
-        if (!s.isRunning && s.pausedElapsed == 0L) {
+        val now = System.currentTimeMillis()
+        if (!s.hasTime) {
             manager.cancel(ID_STOPWATCH)
             return
         }
-        val builder = ongoing(TAB_STOPWATCH).setContentTitle(s.activityName ?: "Stopwatch")
-        if (s.runningSince != null) {
+        val builder = ongoing(TAB_STOPWATCH).setContentTitle(s.category?.name ?: "Stopwatch")
+        if (s.isRunning) {
             builder
                 .setContentText("Running")
                 .setUsesChronometer(true)
-                .setWhen(s.runningSince)
+                .setWhen(now - s.elapsedAt(now))
                 .setShowWhen(true)
                 .addAction(action("Pause", ControlReceiver.ACTION_STOPWATCH_TOGGLE))
         } else {
             builder
-                .setContentText("Paused · ${formatClock(s.pausedElapsed)}")
+                .setContentText("Paused · ${formatClock(s.elapsedAt(now))}")
                 .setShowWhen(false)
                 .addAction(action("Resume", ControlReceiver.ACTION_STOPWATCH_TOGGLE))
         }

@@ -33,8 +33,8 @@ import com.krrishkumar.focustimer.ui.components.AnimatedTimeText
 import com.krrishkumar.focustimer.ui.components.fittedDigitSize
 import com.krrishkumar.focustimer.ui.components.focusDigitSize
 import com.krrishkumar.focustimer.ui.components.textSizeScale
-import com.krrishkumar.focustimer.ui.components.NameDialog
-import com.krrishkumar.focustimer.ui.components.PencilIcon
+import com.krrishkumar.focustimer.ui.components.CategoryChip
+import com.krrishkumar.focustimer.ui.components.CategoryPicker
 import com.krrishkumar.focustimer.ui.components.PauseIcon
 import com.krrishkumar.focustimer.ui.components.PlayIcon
 import com.krrishkumar.focustimer.ui.components.ResetIcon
@@ -74,23 +74,10 @@ fun StopwatchScreen(
             Spacer(Modifier.weight(1f))
 
             if (!focusMode) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { naming = true }
-                        .padding(6.dp)
-                ) {
-                    Text(
-                        text = state.activityName ?: "Add activity",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (state.activityName != null) colors.textSecondary else colors.textMuted
-                    )
-                    PencilIcon(color = colors.textMuted)
-                }
+                CategoryChip(
+                    category = state.category,
+                    onClick = { naming = true }
+                )
                 Spacer(Modifier.height(if (compact) 6.dp else 16.dp))
             }
 
@@ -138,12 +125,10 @@ fun StopwatchScreen(
     }
 
     if (naming) {
-        NameDialog(
-            title = "Name this activity",
-            placeholder = "e.g. Reading",
-            initialValue = state.activityName ?: "",
-            onSave = {
-                viewModel.setActivityName(it)
+CategoryPicker(
+            selectedId = state.category?.id,
+            onSelect = {
+                viewModel.setCategory(it)
                 naming = false
             },
             onDismiss = { naming = false }

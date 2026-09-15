@@ -2,6 +2,7 @@ package com.krrishkumar.focustimer
 
 import android.app.Application
 import com.krrishkumar.focustimer.data.AppPreferences
+import com.krrishkumar.focustimer.data.CategoryStore
 import com.krrishkumar.focustimer.data.SessionRepository
 import com.krrishkumar.focustimer.engine.AlarmScheduler
 import com.krrishkumar.focustimer.engine.Alerts
@@ -29,6 +30,16 @@ class AlltimeApp : Application() {
     /** Set by MainActivity while it's on screen. */
     @Volatile
     var isInForeground = false
+
+    val categoryStore by lazy {
+        CategoryStore(repository, appScope).apply {
+            // A deleted category can't stay selected for the next session.
+            onDeleted = { id ->
+                timerEngine.clearCategory(id)
+                stopwatchEngine.clearCategory(id)
+            }
+        }
+    }
 
     val timerEngine by lazy {
         TimerEngine(

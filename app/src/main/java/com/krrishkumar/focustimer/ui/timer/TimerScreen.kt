@@ -57,8 +57,8 @@ import com.krrishkumar.focustimer.ui.components.fittedDigitSize
 import com.krrishkumar.focustimer.ui.components.focusDigitSize
 import com.krrishkumar.focustimer.ui.components.measuredTextWidth
 import com.krrishkumar.focustimer.ui.components.textSizeScale
-import com.krrishkumar.focustimer.ui.components.NameDialog
-import com.krrishkumar.focustimer.ui.components.PencilIcon
+import com.krrishkumar.focustimer.ui.components.CategoryChip
+import com.krrishkumar.focustimer.ui.components.CategoryPicker
 import com.krrishkumar.focustimer.ui.components.PauseIcon
 import com.krrishkumar.focustimer.ui.components.PlayIcon
 import com.krrishkumar.focustimer.ui.components.ResetIcon
@@ -130,9 +130,8 @@ fun TimerScreen(
             Spacer(Modifier.weight(1f))
 
             if (!focusMode) {
-                ActivityRow(
-                    name = state.activityName,
-                    colors = colors,
+                CategoryChip(
+                    category = state.category,
                     onClick = { naming = true }
                 )
                 Spacer(Modifier.height(if (compact) 6.dp else 16.dp))
@@ -312,12 +311,10 @@ fun TimerScreen(
     }
 
     if (naming) {
-        NameDialog(
-            title = "Name this activity",
-            placeholder = "e.g. Physics revision",
-            initialValue = state.activityName ?: "",
-            onSave = {
-                viewModel.setActivityName(it)
+CategoryPicker(
+            selectedId = state.category?.id,
+            onSelect = {
+                viewModel.setCategory(it)
                 naming = false
             },
             onDismiss = { naming = false }
@@ -349,29 +346,6 @@ private fun Modifier.dragToAdjustMinutes(
             onStep(-1)
             carried += stepPx
         }
-    }
-}
-
-/** Subtle, tappable line showing what this stretch of time is being spent on. */
-@Composable
-private fun ActivityRow(name: String?, colors: AppColors, onClick: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-            .padding(6.dp)
-    ) {
-        Text(
-            text = name ?: "Add activity",
-            style = MaterialTheme.typography.labelMedium,
-            color = if (name != null) colors.textSecondary else colors.textMuted
-        )
-        PencilIcon(color = colors.textMuted)
     }
 }
 

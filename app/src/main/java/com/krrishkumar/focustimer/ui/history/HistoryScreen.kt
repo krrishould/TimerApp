@@ -18,145 +18,212 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.krrishkumar.focustimer.AlltimeApp
 import com.krrishkumar.focustimer.data.SessionRepository
 import com.krrishkumar.focustimer.data.SessionType
 import com.krrishkumar.focustimer.data.WorkSession
-import com.krrishkumar.focustimer.ui.components.NameDialog
+import com.krrishkumar.focustimer.ui.components.CategoryDot
 import com.krrishkumar.focustimer.ui.theme.AppColors
 import com.krrishkumar.focustimer.ui.theme.LocalAppColors
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.Calendar
 
 @Composable
 fun HistoryScreen(repository: SessionRepository, modifier: Modifier = Modifier) {
     val viewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory(repository))
     val state by viewModel.uiState.collectAsState()
     val colors = LocalAppColors.current
-    var editing by remember { mutableStateOf<WorkSession?>(null) }
+    val context = LocalContext.current
+    val is24Hour = remember { (context.applicationContext as AlltimeApp).preferences.is24HourClock() }
 
+    // Sessions are written from the timer and stopwatch while this screen is closed.
     LaunchedEffect(Unit) { viewModel.refresh() }
 
-    val openDay = state.selectedDay
-    val listedSessions = if (openDay != null) state.selectedDaySessions else state.recentSessions
-
     LazyColumn(
-        modifier = modifier.fillMaxSize().padding(horizontal = 28.dp),
-        contentPadding = PaddingValues(top = 64.dp, bottom = 32.dp)
+        modifier = modifier.fillMaxSize().padding(horizontal = 24.dp),
+        contentPadding = PaddingValues(top = 60.dp, bottom = 32.dp)
     ) {
         item {
-            Text("TODAY", style = MaterialTheme.typography.labelLarge, color = colors.textSecondary)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = formatDuration(state.todayTotalMillis),
-                style = MaterialTheme.typography.displayLarge.copy(fontSize = 52.sp),
-                color = colors.textPrimary
-            )
+            TabSwitch(state.tab, colors, onSelect = viewModel::selectTab)
+            Spacer(Modifier.height(28.dp))
         }
-        item {
-            Spacer(Modifier.height(40.dp))
-            Text("THIS WEEK", style = MaterialTheme.typography.labelLarge, color = colors.textSecondary)
-            Spacer(Modifier.height(20.dp))
-            WeekBarChart(
-                days = state.week,
-                selectedDayStart = openDay?.dayStart,
-                colors = colors,
-                onDayClick = { day ->
-                    if (openDay?.dayStart == day.dayStart) viewModel.clearSelectedDay()
-                    else viewModel.selectDay(day)
-                }
-            )
-        }
-        item {
-            Spacer(Modifier.height(36.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
+
+        if (state.tab == HistoryTab.STATS) {
+            item {
+                StatsView(
+                    stats = state.stats,
+                    range = state.statsRange,
+                    is24Hour = is24Hour,
+                    colors = colors,
+                    onRangeChange = viewModel::setStatsRange
+                )
+            }
+        } else {
+            item {
+                WeekHeader(
+                    label = state.weekLabel,
+                    canGoForward = state.canGoForward,
+                    colors = colors,
+                    onBack = viewModel::previousWeek,
+                    onForward = viewModel::nextWeek
+                )
+                Spacer(Modifier.height(16.dp))
+                WeekBarChart(
+                    days = state.week,
+                    selectedDayStart = state.selectedDay?.dayStart,
+                    colors = colors,
+                    onDayClick = viewModel::selectDay
+                )
+            }
+
+            state.selectedDay?.let { day ->
+                item {
+                    val dayEnd = remember(day.dayStart) {
+                        Calendar.getInstance().apply {
+                            timeInMillis = day.dayStart
+                            add(Calendar.DAY_OF_YEAR, 1)
+                        }.timeInMillis
+                    }
+                    Spacer(Modifier.height(32.dp))
                     Text(
-                        text = openDay?.name?.uppercase() ?: "RECENT SESSIONS",
+                        text = if (day.isToday) "TODAY" else day.name.uppercase(),
                         style = MaterialTheme.typography.labelLarge,
                         color = colors.textSecondary
                     )
-                    if (openDay != null) {
-                        Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = formatDuration(day.totalMillis),
+                        style = MaterialTheme.typography.displayLarge.copy(fontSize = 46.sp),
+                        color = colors.textPrimary
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    DayTimeline(
+                        segments = state.dayTimeline,
+                        dayStart = day.dayStart,
+                        dayEnd = dayEnd,
+                        colors = colors
+                    )
+                    if (state.dayTimeline.any { it.type == SessionType.POMODORO_BREAK }) {
+                        Spacer(Modifier.height(6.dp))
                         Text(
-                            text = formatDuration(openDay.totalMillis),
-                            style = MaterialTheme.typography.titleLarge,
-                            color = colors.textPrimary
+                            "Faded blocks are breaks. Gaps are pauses or time away.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textMuted
+                        )
+                    }
+                    Spacer(Modifier.height(28.dp))
+                    Text("SESSIONS", style = MaterialTheme.typography.labelLarge, color = colors.textSecondary)
+                    Spacer(Modifier.height(12.dp))
+                    if (state.daySessions.isEmpty()) {
+                        Text(
+                            text = if (day.isToday) "Nothing tracked yet today" else "Nothing tracked on this day",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textMuted,
+                            modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
                 }
-                if (openDay != null) {
-                    Text(
-                        text = "Clear",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.accent,
-                        modifier = Modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { viewModel.clearSelectedDay() }
-                            .padding(8.dp)
-                    )
+                items(state.daySessions, key = { it.id }) { session ->
+                    SessionRow(session, is24Hour, colors, onClick = { viewModel.openSession(session) })
                 }
             }
-            Spacer(Modifier.height(12.dp))
-        }
-        if (listedSessions.isEmpty()) {
-            item {
-                Text(
-                    text = if (openDay != null) "Nothing tracked on this day" else "No sessions yet",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.textMuted,
-                    modifier = Modifier.padding(vertical = 16.dp)
-                )
-            }
-        }
-        items(listedSessions, key = { it.id }) { session ->
-            SessionRow(session, colors, onClick = { editing = session })
         }
     }
 
-    editing?.let { session ->
-        NameDialog(
-            title = "Name this session",
-            placeholder = defaultLabel(session.type),
-            initialValue = session.label ?: "",
-            onSave = { label ->
-                viewModel.setLabel(session, label)
-                editing = null
-            },
-            onDismiss = { editing = null },
-            onDelete = {
-                viewModel.deleteSession(session)
-                editing = null
+    state.detail?.let { detail ->
+        SessionDetailDialog(
+            detail = detail,
+            is24Hour = is24Hour,
+            onChangeCategory = { viewModel.setSessionCategory(detail.session, it) },
+            onDelete = { viewModel.deleteSession(detail.session) },
+            onDismiss = viewModel::closeSession
+        )
+    }
+}
+
+@Composable
+private fun TabSwitch(selected: HistoryTab, colors: AppColors, onSelect: (HistoryTab) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.surfaceRaised, RoundedCornerShape(16.dp))
+            .padding(4.dp)
+    ) {
+        listOf(HistoryTab.DAYS to "Days", HistoryTab.STATS to "Stats").forEach { (tab, label) ->
+            val isSelected = tab == selected
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(if (isSelected) colors.surface else Color.Transparent, RoundedCornerShape(12.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onSelect(tab) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isSelected) colors.textPrimary else colors.textMuted
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun WeekHeader(
+    label: String,
+    canGoForward: Boolean,
+    colors: AppColors,
+    onBack: () -> Unit,
+    onForward: () -> Unit
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label.uppercase(),
+            style = MaterialTheme.typography.labelLarge,
+            color = colors.textSecondary,
+            modifier = Modifier.weight(1f)
+        )
+        ArrowButton("‹", enabled = true, colors = colors, onClick = onBack)
+        ArrowButton("›", enabled = canGoForward, colors = colors, onClick = onForward)
+    }
+}
+
+@Composable
+private fun ArrowButton(glyph: String, enabled: Boolean, colors: AppColors, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                enabled = enabled,
+                onClick = onClick
+            )
+            .padding(horizontal = 14.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            glyph,
+            style = MaterialTheme.typography.headlineMedium,
+            color = if (enabled) colors.textPrimary else colors.border
         )
     }
 }
@@ -181,12 +248,13 @@ private fun WeekBarChart(
                     .fillMaxHeight()
                     .padding(horizontal = 2.dp)
                     .background(
-                        if (selected) colors.surfaceRaised else androidx.compose.ui.graphics.Color.Transparent,
+                        if (selected) colors.surfaceRaised else Color.Transparent,
                         RoundedCornerShape(12.dp)
                     )
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = null
+                        indication = null,
+                        enabled = !day.isFuture
                     ) { onDayClick(day) }
                     .padding(vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -211,7 +279,11 @@ private fun WeekBarChart(
                     text = day.initial,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Medium,
-                    color = if (day.isToday) colors.accent else colors.textMuted
+                    color = when {
+                        day.isToday -> colors.accent
+                        day.isFuture -> colors.border
+                        else -> colors.textMuted
+                    }
                 )
             }
         }
@@ -219,32 +291,45 @@ private fun WeekBarChart(
 }
 
 @Composable
-private fun SessionRow(session: WorkSession, colors: AppColors, onClick: () -> Unit) {
-    val timeFormat = remember { SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()) }
+private fun SessionRow(session: WorkSession, is24Hour: Boolean, colors: AppColors, onClick: () -> Unit) {
+    val paused = session.pausedMillis
+    val subtitle = buildString {
+        append(formatClockTime(session.startTimeMillis, is24Hour))
+        append(" – ")
+        append(formatClockTime(session.endTimeMillis, is24Hour))
+        if (session.categoryName != null) append(" · ${sessionTypeLabel(session.type)}")
+        if (paused >= 60_000L) append(" · paused ${formatDuration(paused)}")
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(bottom = 10.dp)
             .background(colors.surfaceRaised, RoundedCornerShape(16.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 18.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        CategoryDot(session.categoryColor, size = 10.dp)
+        Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = session.label ?: defaultLabel(session.type),
+                text = session.categoryName ?: sessionTypeLabel(session.type),
                 style = MaterialTheme.typography.bodyLarge,
-                color = colors.textPrimary
+                color = colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = timeFormat.format(Date(session.startTimeMillis)),
+                text = subtitle,
                 style = MaterialTheme.typography.labelMedium,
-                color = colors.textMuted
+                color = colors.textMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
         Spacer(Modifier.width(12.dp))
@@ -254,19 +339,4 @@ private fun SessionRow(session: WorkSession, colors: AppColors, onClick: () -> U
             color = colors.textSecondary
         )
     }
-    Spacer(Modifier.height(10.dp))
-}
-
-private fun defaultLabel(type: SessionType) = when (type) {
-    SessionType.TIMER -> "Timer"
-    SessionType.POMODORO_WORK -> "Pomodoro focus"
-    SessionType.POMODORO_BREAK -> "Pomodoro break"
-    SessionType.STOPWATCH -> "Stopwatch"
-}
-
-private fun formatDuration(millis: Long): String {
-    val totalMinutes = millis / 60000
-    val hours = totalMinutes / 60
-    val minutes = totalMinutes % 60
-    return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
 }

@@ -1,6 +1,9 @@
 package com.krrishkumar.focustimer.engine
 
 import android.content.SharedPreferences
+import com.krrishkumar.focustimer.data.Category
+import com.krrishkumar.focustimer.data.Segment
+import com.krrishkumar.focustimer.data.activeMillis
 
 enum class TimerPhase { WORK, BREAK }
 
@@ -34,8 +37,8 @@ data class TimerModel(
     val timerMinutes: Int = 25,
     val workMinutes: Int = 25,
     val breakMinutes: Int = 5,
-    /** Name applied to logged sessions; stays set until the user changes it. */
-    val activityName: String? = null,
+    /** Category applied to logged sessions; stays set until the user changes it. */
+    val category: Category? = null,
     /** When the running countdown reaches zero; null unless counting down. */
     val endsAt: Long? = null,
     /** Time left on a countdown paused part-way; null when idle or running. */
@@ -47,7 +50,11 @@ data class TimerModel(
     /** Overtime banked while paused. */
     val overtimeBanked: Long = 0L,
     /** When the current period first started, used as the logged session's start. */
-    val phaseStartedAt: Long = 0L
+    val phaseStartedAt: Long = 0L,
+    /** Stretches of this period that have already run and been paused. */
+    val segments: List<Segment> = emptyList(),
+    /** When the stretch running right now began; null while stopped. */
+    val runningSince: Long? = null
 ) {
     val phaseMillis: Long
         get() = when {
@@ -70,6 +77,16 @@ data class TimerModel(
 
     fun overtimeAt(now: Long): Long =
         if (overtimeSince != null) (now - overtimeSince).coerceAtLeast(0L) else overtimeBanked
+
+    /** This period's segments, with the one running now closed off at [end]. */
+    fun segmentsUntil(end: Long): List<Segment> {
+        // A timer saved before segments existed has no start for its open stretch;
+        // the period's own start is the best stand-in.
+        val openStart = runningSince ?: if (isRunning) phaseStartedAt else null
+        return if (openStart != null && end > openStart) segments + Segment(openStart, end) else segments
+    }
+
+    fun activeAt(now: Long): Long = segmentsUntil(now).activeMillis()
 }
 
 internal fun SharedPreferences.nullableLong(key: String): Long? =
@@ -77,6 +94,35 @@ internal fun SharedPreferences.nullableLong(key: String): Long? =
 
 internal fun SharedPreferences.Editor.putNullableLong(key: String, value: Long?) {
     if (value != null) putLong(key, value) else remove(key)
+}
+
+/** Segments stored compactly as "start-end,start-end". */
+internal fun encodeSegments(segments: List<Segment>): String =
+    segments.joinToString(",") { "${it.start}-${it.end}" }
+
+internal fun decodeSegments(text: String?): List<Segment> =
+    text.orEmpty().split(",").mapNotNull { part ->
+        val bounds = part.split("-")
+        val start = bounds.getOrNull(0)?.toLongOrNull()
+        val end = bounds.getOrNull(1)?.toLongOrNull()
+        if (start != null && end != null && end > start) Segment(start, end) else null
+    }
+
+/** A category saved alongside engine state, so a notification can name it without the database. */
+internal fun SharedPreferences.Editor.putCategory(prefix: String, category: Category?) {
+    if (category == null) {
+        remove("${prefix}_id"); remove("${prefix}_name"); remove("${prefix}_color")
+    } else {
+        putLong("${prefix}_id", category.id)
+        putString("${prefix}_name", category.name)
+        putInt("${prefix}_color", category.color)
+    }
+}
+
+internal fun SharedPreferences.category(prefix: String): Category? {
+    val id = nullableLong("${prefix}_id") ?: return null
+    val name = getString("${prefix}_name", null) ?: return null
+    return Category(id, name, getInt("${prefix}_color", 0))
 }
 
 /** "4:05" or "1:04:05", for notification text. */
