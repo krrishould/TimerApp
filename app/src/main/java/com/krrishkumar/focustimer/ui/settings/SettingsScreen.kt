@@ -1,5 +1,7 @@
 package com.krrishkumar.focustimer.ui.settings
 
+import android.app.Activity
+import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,14 +26,22 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.krrishkumar.focustimer.AlltimeApp
 import com.krrishkumar.focustimer.engine.PomodoroEndBehavior
+import kotlinx.coroutines.launch
 import com.krrishkumar.focustimer.ui.components.TEXT_SIZE_STEPS
 import com.krrishkumar.focustimer.ui.theme.AppColors
 import com.krrishkumar.focustimer.ui.theme.LocalAppColors
@@ -103,6 +113,8 @@ fun SettingsScreen(
         ) {
             // Capped so the rows don't stretch edge to edge on a tablet.
             Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(bottom = 40.dp)) {
+                SyncSection(colors)
+
                 Section("APPEARANCE", colors)
                 Label("Theme", colors)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -273,6 +285,109 @@ private fun Option(
             label,
             color = if (selected) colors.onAccent else colors.textSecondary,
             style = MaterialTheme.typography.titleMedium
+        )
+    }
+}
+
+/** Sign in once on each device with the same Google account and they share their data. */
+@Composable
+private fun SyncSection(colors: AppColors) {
+    val context = LocalContext.current
+    val sync = (context.applicationContext as AlltimeApp).syncManager
+    val state by sync.state.collectAsState()
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    Section("SYNC", colors)
+    when {
+        !state.configured -> {
+            Text("Sync isn't set up in this build", style = MaterialTheme.typography.bodyLarge, color = colors.textPrimary)
+            Hint("It needs the Firebase project's google-services.json added to the app before anyone can sign in.", colors)
+        }
+        !state.signedIn -> {
+            Text("Keep your devices in step", style = MaterialTheme.typography.bodyLarge, color = colors.textPrimary)
+            Hint("Sign in with the same Google account on your phone and tablet to share history, categories and settings. Text size stays per device.", colors)
+            Spacer(Modifier.height(14.dp))
+            ActionButton(
+                label = if (busy) "Signing in…" else "Sign in with Google",
+                filled = true,
+                enabled = !busy,
+                colors = colors,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val activity = context as? Activity ?: return@ActionButton
+                busy = true
+                message = null
+                scope.launch {
+                    sync.signIn(activity).onFailure { message = it.message }
+                    busy = false
+                }
+            }
+        }
+        else -> {
+            Text(state.email ?: "Signed in", style = MaterialTheme.typography.bodyLarge, color = colors.textPrimary)
+            Spacer(Modifier.height(4.dp))
+            val status = when {
+                state.syncing -> "Syncing…"
+                state.error != null -> "Couldn't sync: ${state.error}"
+                state.lastSyncedAt != null -> "Synced " + DateUtils.getRelativeTimeSpanString(
+                    state.lastSyncedAt!!, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS
+                ).toString().lowercase()
+                else -> "Waiting to sync"
+            }
+            Text(
+                status,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (state.error != null) colors.danger else colors.textMuted
+            )
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ActionButton("Sync now", filled = false, enabled = !state.syncing, colors = colors, modifier = Modifier.weight(1f)) {
+                    sync.syncNow()
+                }
+                ActionButton("Sign out", filled = false, enabled = true, colors = colors, modifier = Modifier.weight(1f)) {
+                    sync.signOut()
+                }
+            }
+            Hint("Signing out keeps everything on this device; it just stops sharing.", colors)
+        }
+    }
+    message?.let {
+        Spacer(Modifier.height(8.dp))
+        Text(it, style = MaterialTheme.typography.bodyMedium, color = colors.danger)
+    }
+}
+
+@Composable
+private fun ActionButton(
+    label: String,
+    filled: Boolean,
+    enabled: Boolean,
+    colors: AppColors,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .background(if (filled) colors.accent else colors.surfaceRaised, RoundedCornerShape(14.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                enabled = enabled,
+                onClick = onClick
+            )
+            .padding(vertical = 13.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.titleMedium,
+            color = when {
+                !enabled -> colors.textMuted
+                filled -> colors.onAccent
+                else -> colors.textSecondary
+            }
         )
     }
 }

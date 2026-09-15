@@ -12,6 +12,7 @@ import com.krrishkumar.focustimer.data.WorkSession
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -112,6 +113,14 @@ class HistoryViewModel(private val repository: SessionRepository) : ViewModel() 
 
     private var daysJob: Job? = null
     private var statsJob: Job? = null
+
+    init {
+        // Reload when anything is written, including sessions arriving from another device.
+        // The first value is skipped: the screen already loads when it opens.
+        viewModelScope.launch {
+            repository.changes.drop(1).collect { refresh() }
+        }
+    }
 
     fun refresh() {
         loadDays()

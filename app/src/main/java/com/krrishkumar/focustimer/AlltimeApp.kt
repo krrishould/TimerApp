@@ -9,6 +9,7 @@ import com.krrishkumar.focustimer.engine.Alerts
 import com.krrishkumar.focustimer.engine.EngineNotifier
 import com.krrishkumar.focustimer.engine.StopwatchEngine
 import com.krrishkumar.focustimer.engine.TimerEngine
+import com.krrishkumar.focustimer.sync.SyncManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -56,5 +57,14 @@ class AlltimeApp : Application() {
 
     val stopwatchEngine by lazy {
         StopwatchEngine(this, repository, preferences, notifier, appScope)
+    }
+
+    val syncManager by lazy { SyncManager(this, repository, preferences, appScope) }
+
+    override fun onCreate() {
+        super.onCreate()
+        // Started with the process rather than the screen, so a session the alarm logs while
+        // the app is closed is still sent to the other device.
+        syncManager.start()
     }
 }

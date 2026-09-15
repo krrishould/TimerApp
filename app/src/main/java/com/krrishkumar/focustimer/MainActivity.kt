@@ -1,10 +1,12 @@
 package com.krrishkumar.focustimer
 
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +52,24 @@ class MainActivity : ComponentActivity() {
                 mutableIntStateOf(preferences.getClaimBreakAfterMinutes())
             }
             var focusGestureEnabled by remember { mutableStateOf(preferences.isFocusGestureEnabled()) }
+
+            // Settings can change underneath the screen when they arrive from another device,
+            // so re-read them whenever the stored values move.
+            DisposableEffect(Unit) {
+                val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+                    isDarkTheme = preferences.isDarkMode()
+                    is24Hour = preferences.is24HourClock()
+                    showSeconds = preferences.isClockSecondsShown()
+                    textSizeLevel = preferences.getTextSizeLevel()
+                    endBehavior = PomodoroEndBehavior.from(preferences.getPomodoroEndBehavior())
+                    keepIncompleteCycles = preferences.isKeepIncompleteCycles()
+                    logStopwatchOnPause = preferences.isLogStopwatchOnPause()
+                    claimBreakAfter = preferences.getClaimBreakAfterMinutes()
+                    focusGestureEnabled = preferences.isFocusGestureEnabled()
+                }
+                preferences.registerListener(listener)
+                onDispose { preferences.unregisterListener(listener) }
+            }
 
             FocusTimerTheme(darkTheme = isDarkTheme) {
                 FocusTimerApp(

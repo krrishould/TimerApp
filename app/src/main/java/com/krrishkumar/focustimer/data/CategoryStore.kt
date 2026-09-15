@@ -17,7 +17,10 @@ class CategoryStore(
     var onDeleted: (Long) -> Unit = {}
 
     init {
-        refresh()
+        // Reloads on every database change, including categories arriving from another device.
+        scope.launch {
+            repository.changes.collect { _categories.value = repository.getCategories() }
+        }
     }
 
     fun refresh() {
